@@ -92,6 +92,8 @@
   --connector-postgres: oklch(0.45 0.08 248);
   --connector-mcp-filesystem: oklch(0.76 0.18 66);
   --connector-mcp-memory: oklch(0.64 0.24 293);
+  --workflow-edge-source: oklch(0.52 0.19 275);
+  --workflow-edge-target: oklch(0.556 0 0);
 }
 
 .dark {
@@ -127,6 +129,8 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 9%);
   --sidebar-ring: oklch(0.62 0.2 280);
+  --workflow-edge-source: oklch(0.62 0.2 280);
+  --workflow-edge-target: oklch(0.708 0 0);
 }
 
 @layer base {
@@ -166,6 +170,17 @@
   }
   .hover-lift:active {
     transform: scale(0.98);
+  }
+
+  /* Touch-safe opacity reveal for decorative layers (Bento radial/gleam) */
+  @media (hover: hover) {
+    .group:hover .reveal-on-hover {
+      opacity: 1;
+    }
+  }
+  .reveal-on-hover {
+    opacity: 0;
+    transition: opacity 0.5s ease;
   }
 
   /* Smooth node dragging */

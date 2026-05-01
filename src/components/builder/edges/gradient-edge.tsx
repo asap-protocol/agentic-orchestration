@@ -1,9 +1,10 @@
 "use client"
 
 import { getBezierPath, type EdgeProps } from "@xyflow/react"
+import { WORKFLOW_EDGE_SOURCE, WORKFLOW_EDGE_TARGET } from "@/lib/design-tokens"
 
-const DEFAULT_SOURCE_COLOR = "#3b82f6"
-const DEFAULT_TARGET_COLOR = "#94a3b8"
+const DEFAULT_SOURCE_COLOR = WORKFLOW_EDGE_SOURCE
+const DEFAULT_TARGET_COLOR = WORKFLOW_EDGE_TARGET
 const INTERACTION_WIDTH = 20
 
 export function GradientEdge({

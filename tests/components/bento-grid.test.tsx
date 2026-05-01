@@ -45,7 +45,7 @@ describe("BentoCard", () => {
     )
     const radialDiv = container.querySelector('[data-slot="bento-card-radial"]')
     expect(radialDiv).toBeInTheDocument()
-    expect(radialDiv).toHaveClass("opacity-0")
+    expect(radialDiv).toHaveClass("reveal-on-hover")
   })
 
   it("applies custom className (e.g. md:col-span-2)", () => {

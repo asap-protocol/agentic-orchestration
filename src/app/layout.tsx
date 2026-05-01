@@ -1,5 +1,6 @@
 import type React from "react"
 import type { Metadata } from "next"
+import { headers } from "next/headers"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { SpeedInsights } from "@vercel/speed-insights/next"
@@ -8,6 +9,7 @@ import { Sidebar } from "@/components/sidebar"
 import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/components/auth-provider"
+import { CSP_NONCE_HEADER } from "@/lib/csp-nonce-header"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -44,17 +46,22 @@ export const metadata: Metadata = {
   },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Set by src/proxy.ts on each request. If absent (e.g. misconfigured matcher), inline script may be blocked by CSP.
+  const nonce = (await headers()).get(CSP_NONCE_HEADER) ?? undefined
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
+        {nonce ? (
+          <script
+            nonce={nonce}
+            dangerouslySetInnerHTML={{
+              __html: `
               try {
                 const color = localStorage.getItem("app-accent-color")
                 if (color) {
@@ -64,8 +71,9 @@ export default function RootLayout({
                 console.warn("Accent color restoration failed:", e)
               }
             `,
-          }}
-        />
+            }}
+          />
+        ) : null}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}

@@ -118,18 +118,18 @@ export function MCPManager() {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="rounded-lg border border-indigo-500/20 bg-indigo-500/10 p-2">
-                        <Server className="h-5 w-5 text-indigo-300" />
+                      <div className="border-primary/20 bg-primary/10 rounded-lg border p-2">
+                        <Server className="text-primary h-5 w-5" />
                       </div>
                       <div>
                         <h3 className="font-semibold">{server.name}</h3>
                         <p className="text-muted-foreground mt-1 text-sm">{server.url}</p>
                         <div className="mt-2 flex items-center gap-2">
                           <StatusIcon
-                            className={`h-3 w-3 ${server.status === "connected" ? "text-indigo-300" : "text-destructive"}`}
+                            className={`h-3 w-3 ${server.status === "connected" ? "text-primary" : "text-destructive"}`}
                           />
                           <span
-                            className={`text-xs ${server.status === "connected" ? "text-indigo-300" : "text-destructive"}`}
+                            className={`text-xs ${server.status === "connected" ? "text-primary" : "text-destructive"}`}
                           >
                             {server.status}
                           </span>

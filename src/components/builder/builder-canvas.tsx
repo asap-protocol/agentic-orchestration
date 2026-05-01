@@ -212,7 +212,7 @@ function BuilderCanvasInner() {
       await safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, { method: "DELETE" })
       mutateWorkflowAndHistory(workflowId)
     },
-    [workflowId, saveToHistory, mutateWorkflowAndHistory],
+    [workflowId, saveToHistory, mutateWorkflowAndHistory, safeFetch],
   )
 
   const handleAssignToFrame = useCallback(
@@ -227,7 +227,7 @@ function BuilderCanvasInner() {
       mutateWorkflowAndHistory(workflowId)
       toast({ title: "Node added to frame" })
     },
-    [workflowId, saveToHistory, mutateWorkflowAndHistory, toast],
+    [workflowId, saveToHistory, mutateWorkflowAndHistory, toast, safeFetch],
   )
 
   const handleRemoveFromFrame = useCallback(
@@ -242,7 +242,7 @@ function BuilderCanvasInner() {
       mutateWorkflowAndHistory(workflowId)
       toast({ title: "Node removed from frame" })
     },
-    [workflowId, saveToHistory, mutateWorkflowAndHistory, toast],
+    [workflowId, saveToHistory, mutateWorkflowAndHistory, toast, safeFetch],
   )
 
   const handleFrameLabelChange = useCallback(
@@ -258,7 +258,7 @@ function BuilderCanvasInner() {
       })
       mutateWorkflowAndHistory(workflowId)
     },
-    [workflowId, workflow?.nodes, saveToHistory, mutateWorkflowAndHistory],
+    [workflowId, workflow?.nodes, saveToHistory, mutateWorkflowAndHistory, safeFetch],
   )
 
   const initialNodes = workflow
@@ -346,7 +346,7 @@ function BuilderCanvasInner() {
         }).then(() => mutateWorkflowAndHistory(workflowId!))
       }
     },
-    [onEdgesChange, edges, workflowId, saveToHistory, mutateWorkflowAndHistory],
+    [onEdgesChange, edges, workflowId, saveToHistory, mutateWorkflowAndHistory, safeFetch],
   )
 
   const handleConnect = useCallback(
@@ -365,7 +365,7 @@ function BuilderCanvasInner() {
       })
       mutateWorkflowAndHistory(workflowId)
     },
-    [workflowId, saveToHistory, mutateWorkflowAndHistory],
+    [workflowId, saveToHistory, mutateWorkflowAndHistory, safeFetch],
   )
 
   const handleNodeDragStop = useCallback(
@@ -383,7 +383,7 @@ function BuilderCanvasInner() {
       })
       mutateWorkflowAndHistory(workflowId)
     },
-    [workflowId, saveToHistory, mutateWorkflowAndHistory],
+    [workflowId, saveToHistory, mutateWorkflowAndHistory, safeFetch],
   )
 
   const handleAddNode = useCallback(
@@ -445,7 +445,14 @@ function BuilderCanvasInner() {
       })
       mutateWorkflowAndHistory(workflowId)
     },
-    [workflowId, workflow?.nodes, saveToHistory, mutateWorkflowAndHistory, screenToFlowPosition],
+    [
+      workflowId,
+      workflow?.nodes,
+      saveToHistory,
+      mutateWorkflowAndHistory,
+      screenToFlowPosition,
+      safeFetch,
+    ],
   )
 
   const handleAddFrame = useCallback(() => {
@@ -459,13 +466,13 @@ function BuilderCanvasInner() {
     if (!workflowId) return
     await safeFetch(`/api/workflows/${workflowId}/undo`, { method: "POST" })
     mutateWorkflowAndHistory(workflowId)
-  }, [workflowId, mutateWorkflowAndHistory])
+  }, [workflowId, mutateWorkflowAndHistory, safeFetch])
 
   const handleRedo = useCallback(async () => {
     if (!workflowId) return
     await safeFetch(`/api/workflows/${workflowId}/redo`, { method: "POST" })
     mutateWorkflowAndHistory(workflowId)
-  }, [workflowId, mutateWorkflowAndHistory])
+  }, [workflowId, mutateWorkflowAndHistory, safeFetch])
 
   const handleCopy = useCallback(async () => {
     if (!selectedNodeId || !workflowId) return
@@ -479,7 +486,7 @@ function BuilderCanvasInner() {
       clipboardRef.current = { nodes: result.nodes ?? [], connections: result.connections ?? [] }
       toast({ title: "Node copied to clipboard" })
     }
-  }, [selectedNodeId, workflowId, toast])
+  }, [selectedNodeId, workflowId, toast, safeFetch])
 
   const handlePaste = useCallback(async () => {
     if (!workflowId) return
@@ -501,7 +508,7 @@ function BuilderCanvasInner() {
     } else {
       toast({ title: "Nothing to paste", variant: "destructive" })
     }
-  }, [workflowId, saveToHistory, mutateWorkflowAndHistory, toast])
+  }, [workflowId, saveToHistory, mutateWorkflowAndHistory, toast, safeFetch])
 
   const handleDuplicate = useCallback(async () => {
     if (!selectedNodeId || !workflowId) return
@@ -529,7 +536,7 @@ function BuilderCanvasInner() {
       mutateWorkflowAndHistory(workflowId)
       toast({ title: "Node duplicated" })
     }
-  }, [selectedNodeId, workflowId, saveToHistory, mutateWorkflowAndHistory, toast])
+  }, [selectedNodeId, workflowId, saveToHistory, mutateWorkflowAndHistory, toast, safeFetch])
 
   const handleSelectAll = useCallback(() => {
     if (workflow?.nodes.length) {
@@ -557,7 +564,7 @@ function BuilderCanvasInner() {
       setIsLayoutTransitioning(false)
       toast({ title: "Failed to apply layout", variant: "destructive" })
     }
-  }, [workflowId, saveToHistory, mutateWorkflowAndHistory, toast])
+  }, [workflowId, saveToHistory, mutateWorkflowAndHistory, toast, safeFetch])
 
   useEffect(() => {
     return () => {
@@ -573,7 +580,7 @@ function BuilderCanvasInner() {
     saveToHistory()
     await safeFetch(`/api/workflows/${workflowId}/nodes/${selectedNodeId}`, { method: "DELETE" })
     mutateWorkflowAndHistory(workflowId)
-  }, [selectedNodeId, workflowId, saveToHistory, mutateWorkflowAndHistory])
+  }, [selectedNodeId, workflowId, saveToHistory, mutateWorkflowAndHistory, safeFetch])
 
   const handleDuplicateById = useCallback(
     async (nodeId: string) => {
@@ -599,7 +606,7 @@ function BuilderCanvasInner() {
         toast({ title: "Node duplicated" })
       }
     },
-    [workflowId, saveToHistory, mutateWorkflowAndHistory, toast],
+    [workflowId, saveToHistory, mutateWorkflowAndHistory, toast, safeFetch],
   )
 
   const handleCopyById = useCallback(
@@ -616,7 +623,7 @@ function BuilderCanvasInner() {
         toast({ title: "Node copied to clipboard" })
       }
     },
-    [workflowId, toast],
+    [workflowId, toast, safeFetch],
   )
 
   const nodeTypes = useMemo(() => {
@@ -805,12 +812,12 @@ function BuilderCanvasInner() {
               <h1 className="truncate text-sm font-semibold tracking-tight">
                 {workflow?.name || "Untitled Workflow"}
               </h1>
-              <span className="border-border/80 bg-muted/40 text-muted-foreground rounded-full border px-2 py-0.5 text-[10px] font-medium">
+              <span className="border-border/80 bg-muted/40 text-muted-foreground rounded-xl border px-2 py-0.5 text-[10px] font-medium">
                 v{workflow?.version || 1}
               </span>
             </div>
 
-            <div className="border-border/80 bg-background/70 ml-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full border p-1">
+            <div className="border-border/80 bg-background/70 ml-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-xl border p-1">
               <ExportImportDialog
                 workflowId={workflowId}
                 onImportSuccess={(newWorkflow) => {
@@ -827,7 +834,7 @@ function BuilderCanvasInner() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="hover:bg-accent h-8 w-8 rounded-full"
+                className="hover:bg-accent h-8 w-8 rounded-lg"
                 onClick={handleUndo}
                 disabled={!historyStatus?.canUndo}
                 aria-label="Undo"
@@ -838,7 +845,7 @@ function BuilderCanvasInner() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="hover:bg-accent h-8 w-8 rounded-full"
+                className="hover:bg-accent h-8 w-8 rounded-lg"
                 onClick={handleRedo}
                 disabled={!historyStatus?.canRedo}
                 aria-label="Redo"
@@ -850,7 +857,7 @@ function BuilderCanvasInner() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="hover:bg-accent h-8 w-8 rounded-full"
+                className="hover:bg-accent h-8 w-8 rounded-lg"
                 onClick={handleAutoLayout}
                 title="Auto Layout"
                 aria-label="Auto Layout"
@@ -860,7 +867,7 @@ function BuilderCanvasInner() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="hover:bg-accent h-8 w-8 rounded-full"
+                className="hover:bg-accent h-8 w-8 rounded-lg"
                 onClick={handleZoomOut}
                 aria-label="Zoom out"
                 title="Zoom out"
@@ -876,7 +883,7 @@ function BuilderCanvasInner() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="hover:bg-accent h-8 w-8 rounded-full"
+                className="hover:bg-accent h-8 w-8 rounded-lg"
                 onClick={handleZoomIn}
                 aria-label="Zoom in"
                 title="Zoom in"
@@ -886,7 +893,7 @@ function BuilderCanvasInner() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="hover:bg-accent h-8 w-8 rounded-full"
+                className="hover:bg-accent h-8 w-8 rounded-lg"
                 onClick={handleResetView}
                 aria-label="Fit view"
                 title="Fit view"
@@ -897,7 +904,7 @@ function BuilderCanvasInner() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="hover:bg-accent h-8 w-8 rounded-full"
+                className="hover:bg-accent h-8 w-8 rounded-lg"
                 onClick={() => setShowVersionHistory(!showVersionHistory)}
                 aria-label="Version history"
                 title="Version history"
@@ -907,13 +914,13 @@ function BuilderCanvasInner() {
               <Button
                 variant="outline"
                 size="sm"
-                className="ml-1 h-8 gap-2 rounded-full border-indigo-500/20 bg-indigo-500/10 text-indigo-300 hover:bg-indigo-500/20"
+                className="border-primary/20 bg-primary/10 text-primary hover:bg-primary/20 ml-1 h-8 gap-2 rounded-xl"
                 onClick={() => setShowExecutionMonitor(!showExecutionMonitor)}
               >
                 <Play className="h-3.5 w-3.5" />
                 {showExecutionMonitor ? "Close" : "Run"}
               </Button>
-              <Button size="sm" className="h-8 gap-2 rounded-full" onClick={handleSaveVersion}>
+              <Button size="sm" className="h-8 gap-2 rounded-xl" onClick={handleSaveVersion}>
                 <Save className="h-3.5 w-3.5" />
                 Save
               </Button>

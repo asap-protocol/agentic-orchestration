@@ -141,9 +141,9 @@ export function RunsHistory() {
 
   const getStatusBadge = (status: Run["status"]) => {
     const variants: Record<Run["status"], string> = {
-      completed: "border-indigo-500/20 bg-indigo-500/10 text-indigo-300",
+      completed: "border-primary/20 bg-primary/10 text-primary",
       failed: "border-destructive/20 bg-destructive/10 text-destructive",
-      running: "border-violet-500/20 bg-violet-500/10 text-violet-300",
+      running: "border-accent-foreground/20 bg-accent text-accent-foreground",
     }
     return variants[status]
   }

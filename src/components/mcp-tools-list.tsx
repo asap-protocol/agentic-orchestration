@@ -25,7 +25,7 @@ export function MCPToolsList({ tools }: MCPToolsListProps) {
         <Card key={`${tool.serverId}-${tool.name}`} className="border-border/80 p-4">
           <div className="mb-2 flex items-start justify-between">
             <div className="flex items-center gap-2">
-              <Wrench className="h-4 w-4 text-indigo-300" />
+              <Wrench className="text-primary h-4 w-4" />
               <h4 className="font-semibold">{tool.name}</h4>
             </div>
             <Badge variant="secondary" className="text-xs">

@@ -40,7 +40,7 @@ const BentoCard = forwardRef<HTMLDivElement, BentoCardProps>(
       <div
         data-slot="bento-card-radial"
         aria-hidden
-        className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        className="reveal-on-hover absolute inset-0"
         style={{
           backgroundImage:
             "radial-gradient(circle, oklch(var(--foreground) / 0.04) 1px, transparent 1px)",
@@ -50,7 +50,7 @@ const BentoCard = forwardRef<HTMLDivElement, BentoCardProps>(
       {/* Gleam border overlay */}
       <div
         aria-hidden
-        className="via-muted absolute inset-0 bg-gradient-to-br from-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        className="reveal-on-hover via-muted absolute inset-0 bg-gradient-to-br from-transparent to-transparent"
       />
       <div className="relative">
         <div className="bg-muted mb-3 w-fit rounded-lg p-2">

@@ -97,8 +97,8 @@ export function ConnectorRegistry() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="p-6">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg border border-indigo-500/20 bg-indigo-500/10 p-3">
-              <CheckCircle2 className="h-6 w-6 text-indigo-300" />
+            <div className="border-primary/20 bg-primary/10 rounded-lg border p-3">
+              <CheckCircle2 className="text-primary h-6 w-6" />
             </div>
             <div>
               <p className="text-muted-foreground text-sm">Connected</p>
@@ -109,8 +109,8 @@ export function ConnectorRegistry() {
 
         <Card className="p-6">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg border border-zinc-500/20 bg-zinc-500/10 p-3">
-              <Plug className="h-6 w-6 text-zinc-300" />
+            <div className="border-border bg-muted rounded-lg border p-3">
+              <Plug className="text-muted-foreground h-6 w-6" />
             </div>
             <div>
               <p className="text-muted-foreground text-sm">Available</p>
@@ -121,8 +121,8 @@ export function ConnectorRegistry() {
 
         <Card className="p-6">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg border border-violet-500/20 bg-violet-500/10 p-3">
-              <AlertCircle className="h-6 w-6 text-violet-300" />
+            <div className="border-accent-foreground/20 bg-accent rounded-lg border p-3">
+              <AlertCircle className="text-accent-foreground h-6 w-6" />
             </div>
             <div>
               <p className="text-muted-foreground text-sm">Attention</p>

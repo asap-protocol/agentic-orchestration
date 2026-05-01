@@ -1,20 +1,19 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
-import { auth } from "@/auth"
 
+// Request-scoped Supabase client. ALWAYS uses the anon key so Row Level Security
+// is enforced for the authenticated user. Never substitute the service-role key
+// here: that would bypass RLS for every request. Use a dedicated admin client in
+// trusted server-only paths if elevated access is genuinely required.
 export async function getSupabaseServerClient() {
   const cookieStore = await cookies()
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  // Natively intercept the Superuser Key to securely bypass eccentric RLS GoTrue JWT bugs!
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-  const activeKey = serviceRoleKey || anonKey
+  if (!url || !anonKey) return null
 
-  if (!url || !activeKey) return null
-
-  const supabase = createServerClient(url, activeKey, {
+  const supabase = createServerClient(url, anonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll()

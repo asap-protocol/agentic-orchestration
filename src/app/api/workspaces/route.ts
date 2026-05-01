@@ -10,7 +10,8 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
     return NextResponse.json(workspace)
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+  } catch (err) {
+    console.error("GET /api/workspaces error:", err instanceof Error ? err.message : String(err))
+    return NextResponse.json({ error: "Failed to load workspace" }, { status: 500 })
   }
 }

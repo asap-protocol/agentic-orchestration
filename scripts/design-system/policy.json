@@ -1,0 +1,82 @@
+{
+  "$schema": "Design System Policy v1 — see .cursor/product-specs/design-system-agent-builder.md §8",
+  "rules": [
+    {
+      "id": "no-generic-palette",
+      "description": "Forbid generic Tailwind palette colors in feature code (use semantic tokens instead)",
+      "patterns": [
+        "text-zinc-",
+        "bg-zinc-",
+        "border-zinc-",
+        "text-gray-",
+        "bg-gray-",
+        "border-gray-",
+        "text-indigo-",
+        "bg-indigo-",
+        "border-indigo-",
+        "text-violet-",
+        "bg-violet-",
+        "border-violet-"
+      ],
+      "severity": "error",
+      "reference": "design-system-agent-builder.md §8.2"
+    },
+    {
+      "id": "no-heavy-shadows",
+      "description": "shadow-lg and shadow-xl only allowed in overlays (modals, dropdowns, sheets, toasts, dialogs)",
+      "patterns": ["shadow-lg", "shadow-xl", "shadow-2xl"],
+      "severity": "error",
+      "reference": "design-system-agent-builder.md §8 item 1"
+    },
+    {
+      "id": "no-rounded-full-buttons",
+      "description": "rounded-full forbidden on Buttons, Badges, and inputs (max rounded-xl)",
+      "patterns": ["rounded-full"],
+      "severity": "warning",
+      "reference": "design-system-agent-builder.md §8 item 2"
+    },
+    {
+      "id": "no-hex-in-classname",
+      "description": "No raw hex colors (#xxx) in className — use CSS variables or design-tokens.ts",
+      "patterns": ["#[0-9a-fA-F]{3,8}"],
+      "severity": "error",
+      "reference": "design-system-agent-builder.md §8 item 3"
+    }
+  ],
+  "excludedPaths": [
+    {
+      "glob": "src/components/ui/**",
+      "reason": "Shadcn/Radix upstream primitives — managed by component library"
+    },
+    {
+      "glob": "src/components/builder/edges/*.test.tsx",
+      "reason": "Test files may assert resolved color values"
+    },
+    {
+      "glob": "src/components/ui/background-paths.tsx",
+      "reason": "Decorative SVG — approved exception per §8 item 4"
+    },
+    {
+      "glob": "src/lib/design-tokens.ts",
+      "reason": "Central token definitions — source of truth for runtime colors"
+    },
+    {
+      "glob": "src/lib/auth-styles.ts",
+      "reason": "Auth ghost input styles use translucent white by design"
+    }
+  ],
+  "roundedFullAllowlist": [
+    "src/components/ui/switch.tsx",
+    "src/components/ui/slider.tsx",
+    "src/components/ui/radio-group.tsx",
+    "src/components/ui/avatar.tsx",
+    "src/components/ui/progress.tsx",
+    "src/components/ui/drawer.tsx",
+    "src/components/ui/carousel.tsx",
+    "src/components/ui/scroll-area.tsx",
+    "src/components/builder/canvas-node.tsx — React Flow handles only",
+    "src/components/builder/node-sidebar.tsx — toggle button (circular icon control)",
+    "src/components/builder/node-properties-panel.tsx — toggle button (circular icon control)",
+    "src/components/builder/canvas-node.tsx — delete button (small circular icon control)"
+  ]
+}

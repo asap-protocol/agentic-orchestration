@@ -1,6 +1,16 @@
+import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
-import { oauthManager } from "@/lib/oauth-manager"
+import {
+  OAUTH_PKCE_COOKIE_NAME,
+  getOAuthPkceCookieClearOptions,
+  oauthManager,
+} from "@/lib/oauth-manager"
 import { connectorStore } from "@/lib/connector-store"
+
+function withClearedPkceCookie(response: NextResponse): NextResponse {
+  response.cookies.set(OAUTH_PKCE_COOKIE_NAME, "", getOAuthPkceCookieClearOptions())
+  return response
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -9,22 +19,27 @@ export async function GET(request: Request) {
   const error = searchParams.get("error")
 
   if (error) {
-    return NextResponse.redirect(
-      new URL(`/connectors?error=${encodeURIComponent(error)}`, request.url),
+    return withClearedPkceCookie(
+      NextResponse.redirect(new URL(`/connectors?error=${encodeURIComponent(error)}`, request.url)),
     )
   }
 
   if (!code || !state) {
-    return NextResponse.redirect(new URL("/connectors?error=missing_parameters", request.url))
+    return withClearedPkceCookie(
+      NextResponse.redirect(new URL("/connectors?error=missing_parameters", request.url)),
+    )
   }
 
+  const cookieStore = await cookies()
+  const pkceCookie = cookieStore.get(OAUTH_PKCE_COOKIE_NAME)?.value
+
   try {
-    const oauthState = oauthManager.verifyState(state)
+    const oauthState = await oauthManager.verifyPkceCookie(pkceCookie, state)
     if (!oauthState) {
       throw new Error("Invalid OAuth state")
     }
 
-    const tokens = await oauthManager.exchangeCodeForToken(code, state)
+    const tokens = await oauthManager.exchangeCodeForToken(code, oauthState)
 
     const _connection = connectorStore.addConnection({
       connectorId: oauthState.connectorId,
@@ -39,10 +54,14 @@ export async function GET(request: Request) {
       },
     })
 
-    return NextResponse.redirect(new URL("/connectors?success=connected", request.url))
-  } catch (error) {
-    return NextResponse.redirect(
-      new URL(`/connectors?error=${encodeURIComponent((error as Error).message)}`, request.url),
+    return withClearedPkceCookie(
+      NextResponse.redirect(new URL("/connectors?success=connected", request.url)),
+    )
+  } catch (err) {
+    return withClearedPkceCookie(
+      NextResponse.redirect(
+        new URL(`/connectors?error=${encodeURIComponent((err as Error).message)}`, request.url),
+      ),
     )
   }
 }

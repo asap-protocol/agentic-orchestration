@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest"
-import { proxy as middleware, isE2ERateLimitBypass } from "@/proxy"
+import { isE2ERateLimitBypass } from "@/proxy"
 
 const originalEnv = process.env
 

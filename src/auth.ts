@@ -46,9 +46,13 @@ const config: NextAuthConfig = {
 
 export const { handlers, auth: authInternal, signIn, signOut } = NextAuth(config)
 
-// Export a wrapped auth that provides a mock session in development and E2E
+// Export a wrapped auth that provides a mock session in development and E2E.
+// The double guard (NODE_ENV !== "production" AND an explicit dev/E2E flag)
+// ensures this bypass can never accidentally activate in production builds.
 export const auth = (async () => {
-  if (process.env.NODE_ENV === "development" || process.env.PLAYWRIGHT_E2E === "1") {
+  const isProduction = process.env.NODE_ENV === "production"
+  const isDevOrE2E = process.env.NODE_ENV === "development" || process.env.PLAYWRIGHT_E2E === "1"
+  if (!isProduction && isDevOrE2E) {
     return {
       user: {
         id: "00000000-0000-0000-0000-000000000001",

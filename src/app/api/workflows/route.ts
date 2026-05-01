@@ -11,8 +11,9 @@ export async function GET() {
   try {
     const workflows = await getWorkflows(result.workspace.id)
     return NextResponse.json(workflows)
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+  } catch (err) {
+    console.error("GET /api/workflows error:", err instanceof Error ? err.message : String(err))
+    return NextResponse.json({ error: "Failed to load workflows" }, { status: 500 })
   }
 }
 

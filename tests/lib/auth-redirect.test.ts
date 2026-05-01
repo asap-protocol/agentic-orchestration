@@ -39,4 +39,30 @@ describe("resolveRedirectUrl", () => {
     const url = "https://app.example.com/callback"
     expect(resolveRedirectUrl(url, baseUrl, asapUrl)).toBe(url)
   })
+
+  it("rejects open-redirect via baseUrl prefix attack (origin spoofing)", () => {
+    const url = "https://app.example.com.attacker.com/phish"
+    expect(resolveRedirectUrl(url, baseUrl, asapUrl)).toBe(baseUrl)
+  })
+
+  it("rejects open-redirect via asapUrl prefix attack (origin spoofing)", () => {
+    const url = "https://asap.example.com.attacker.com/phish"
+    expect(resolveRedirectUrl(url, baseUrl, asapUrl)).toBe(baseUrl)
+  })
+
+  it("normalizes backslash-trick redirect to safe same-origin URL", () => {
+    const url = "https://app.example.com\\@evil.com/path"
+    const result = resolveRedirectUrl(url, baseUrl, asapUrl)
+    expect(new URL(result).origin).toBe(baseUrl)
+  })
+
+  it("rejects malformed urls", () => {
+    expect(resolveRedirectUrl("not-a-url", baseUrl, asapUrl)).toBe(baseUrl)
+    expect(resolveRedirectUrl("javascript:alert(1)", baseUrl, asapUrl)).toBe(baseUrl)
+    expect(resolveRedirectUrl("//evil.com/x", baseUrl, asapUrl)).toBe(baseUrl)
+  })
+
+  it("accepts exact baseUrl with no trailing path", () => {
+    expect(resolveRedirectUrl(baseUrl, baseUrl, asapUrl)).toBe(baseUrl)
+  })
 })

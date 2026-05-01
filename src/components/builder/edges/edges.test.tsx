@@ -68,10 +68,10 @@ describe("GradientEdge", () => {
     const stops = container.querySelectorAll("stop")
     expect(stops).toHaveLength(2)
     expect(stops[0].getAttribute("stop-color") ?? stops[0].getAttribute("stopColor")).toBe(
-      "#3b82f6",
+      "var(--workflow-edge-source)",
     )
     expect(stops[1].getAttribute("stop-color") ?? stops[1].getAttribute("stopColor")).toBe(
-      "#94a3b8",
+      "var(--workflow-edge-target)",
     )
   })
 

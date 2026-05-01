@@ -1,17 +1,40 @@
 /**
- * Validates redirect URLs against an allowlist (baseUrl and optionally asapUrl).
+ * Validates redirect URLs against an allowlist of trusted origins.
  *
- * Security: Only URLs starting with baseUrl or asapUrl are allowed; all others
- * fall back to baseUrl. This prevents open redirect vulnerabilities in the
- * ASAP Protocol flow.
+ * Security: only absolute URLs whose origin EXACTLY matches `baseUrl` (or the
+ * optional `asapUrl`) are returned as-is. Any other input — relative paths,
+ * non-http(s) schemes, malformed URLs, and prefix-spoofing attempts such as
+ * `https://baseUrl.attacker.com/...` — falls back to `baseUrl`. This prevents
+ * open-redirect vulnerabilities in the OAuth/ASAP Protocol flows.
  *
  * @param url - The redirect URL to validate
- * @param baseUrl - The primary allowed base URL (fallback for invalid URLs)
- * @param asapUrl - Optional ASAP Protocol base URL to allow
- * @returns The validated URL if allowlisted, otherwise baseUrl
+ * @param baseUrl - The primary trusted base URL (also the safe fallback)
+ * @param asapUrl - Optional ASAP Protocol base URL to also trust
+ * @returns The validated URL when its origin is allowlisted; otherwise baseUrl
  */
 export function resolveRedirectUrl(url: string, baseUrl: string, asapUrl?: string): string {
-  if (asapUrl && url.startsWith(asapUrl)) return url
-  if (url.startsWith(baseUrl)) return url
+  const allowedOrigins = new Set<string>()
+  const baseOrigin = safeOrigin(baseUrl)
+  if (baseOrigin) allowedOrigins.add(baseOrigin)
+  if (asapUrl) {
+    const asapOrigin = safeOrigin(asapUrl)
+    if (asapOrigin) allowedOrigins.add(asapOrigin)
+  }
+
+  const candidateOrigin = safeOrigin(url)
+  if (candidateOrigin && allowedOrigins.has(candidateOrigin)) {
+    return url
+  }
+
   return baseUrl
+}
+
+function safeOrigin(value: string): string | null {
+  try {
+    const parsed = new URL(value)
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null
+    return parsed.origin
+  } catch {
+    return null
+  }
 }

@@ -107,44 +107,44 @@ const NODE_CATEGORIES = [
 
 const COLOR_CLASSES: Record<string, { bg: string; icon: string; border: string }> = {
   emerald: {
-    bg: "bg-indigo-500/10",
-    icon: "text-indigo-300",
-    border: "border-indigo-500/20",
+    bg: "bg-primary/10",
+    icon: "text-primary",
+    border: "border-primary/20",
   },
   rose: {
-    bg: "bg-violet-500/10",
-    icon: "text-violet-300",
-    border: "border-violet-500/20",
+    bg: "bg-accent",
+    icon: "text-accent-foreground",
+    border: "border-accent-foreground/20",
   },
   blue: {
-    bg: "bg-indigo-400/15",
-    icon: "text-indigo-200",
-    border: "border-indigo-400/20",
+    bg: "bg-primary/15",
+    icon: "text-primary",
+    border: "border-primary/20",
   },
   purple: {
-    bg: "bg-violet-500/10",
-    icon: "text-violet-300",
-    border: "border-violet-500/20",
+    bg: "bg-accent",
+    icon: "text-accent-foreground",
+    border: "border-accent-foreground/20",
   },
   amber: {
-    bg: "bg-zinc-500/10",
-    icon: "text-zinc-300",
-    border: "border-zinc-500/20",
+    bg: "bg-muted",
+    icon: "text-muted-foreground",
+    border: "border-border",
   },
   orange: {
-    bg: "bg-zinc-500/10",
-    icon: "text-zinc-300",
-    border: "border-zinc-500/20",
+    bg: "bg-muted",
+    icon: "text-muted-foreground",
+    border: "border-border",
   },
   cyan: {
-    bg: "bg-violet-400/15",
-    icon: "text-violet-200",
-    border: "border-violet-400/20",
+    bg: "bg-accent",
+    icon: "text-accent-foreground",
+    border: "border-accent-foreground/20",
   },
   teal: {
-    bg: "bg-indigo-400/15",
-    icon: "text-indigo-200",
-    border: "border-indigo-400/20",
+    bg: "bg-primary/15",
+    icon: "text-primary",
+    border: "border-primary/20",
   },
 }
 

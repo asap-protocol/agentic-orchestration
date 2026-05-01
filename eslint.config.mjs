@@ -28,4 +28,24 @@ export default [
       ],
     },
   },
+  {
+    files: ["src/components/**/*.tsx", "src/app/**/*.tsx"],
+    ignores: [
+      "src/components/ui/**",
+      "src/components/builder/edges/*.test.tsx",
+      "src/lib/design-tokens.ts",
+      "src/lib/auth-styles.ts",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "warn",
+        {
+          selector:
+            "JSXAttribute[name.name='className'] Literal[value=/\\b(text|bg|border)-(zinc|indigo|violet|gray)-/]",
+          message:
+            "Design System §8: Use semantic tokens (bg-muted, text-primary, etc.) instead of generic palette colors. See design-system-agent-builder.md §8.2.",
+        },
+      ],
+    },
+  },
 ]

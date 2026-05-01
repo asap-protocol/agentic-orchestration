@@ -40,57 +40,57 @@ const NODE_COLORS: Record<NodeType, { bg: string; iconBg: string; border: string
   {
     start: {
       bg: "bg-card/95",
-      iconBg: "bg-indigo-500/10",
+      iconBg: "bg-primary/10",
       border: "border-border/80",
-      icon: "text-indigo-300",
+      icon: "text-primary",
     },
     end: {
       bg: "bg-card/95",
-      iconBg: "bg-violet-500/10",
+      iconBg: "bg-accent",
       border: "border-border/80",
-      icon: "text-violet-300",
+      icon: "text-accent-foreground",
     },
     agent: {
       bg: "bg-card/95",
-      iconBg: "bg-indigo-400/15",
+      iconBg: "bg-primary/15",
       border: "border-border/80",
-      icon: "text-indigo-200",
+      icon: "text-primary",
     },
     guardrail: {
       bg: "bg-card/95",
-      iconBg: "bg-zinc-500/10",
+      iconBg: "bg-muted",
       border: "border-border/80",
-      icon: "text-zinc-300",
+      icon: "text-muted-foreground",
     },
     condition: {
       bg: "bg-card/95",
-      iconBg: "bg-violet-500/10",
+      iconBg: "bg-accent",
       border: "border-border/80",
-      icon: "text-violet-300",
+      icon: "text-accent-foreground",
     },
     mcp: {
       bg: "bg-card/95",
-      iconBg: "bg-violet-400/15",
+      iconBg: "bg-accent",
       border: "border-border/80",
-      icon: "text-violet-200",
+      icon: "text-accent-foreground",
     },
     "user-approval": {
       bg: "bg-card/95",
-      iconBg: "bg-zinc-500/10",
+      iconBg: "bg-muted",
       border: "border-border/80",
-      icon: "text-zinc-300",
+      icon: "text-muted-foreground",
     },
     "file-search": {
       bg: "bg-card/95",
-      iconBg: "bg-indigo-400/15",
+      iconBg: "bg-primary/15",
       border: "border-border/80",
-      icon: "text-indigo-200",
+      icon: "text-primary",
     },
     frame: {
       bg: "bg-card/95",
-      iconBg: "bg-zinc-500/10",
+      iconBg: "bg-muted",
       border: "border-border/80",
-      icon: "text-zinc-300",
+      icon: "text-muted-foreground",
     },
   }
 
@@ -200,11 +200,11 @@ export function CanvasNode({ data, selected, type: nodeTypeProp }: WorkflowNodeP
 
         {nodeType === "agent" && data?.model && (
           <div className="mt-4 flex items-center gap-2 pt-1">
-            <span className="rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-1 text-[11px] font-medium text-indigo-300">
+            <span className="border-primary/20 bg-primary/10 text-primary rounded-xl border px-2.5 py-1 text-[11px] font-medium">
               {data.model}
             </span>
             {data.tools && data.tools.length > 0 && (
-              <span className="border-border/80 bg-muted/30 text-muted-foreground/80 rounded-full border px-2.5 py-1 text-[11px] font-medium">
+              <span className="border-border/80 bg-muted/30 text-muted-foreground/80 rounded-xl border px-2.5 py-1 text-[11px] font-medium">
                 {data.tools.length} tool{data.tools.length !== 1 ? "s" : ""}
               </span>
             )}
@@ -213,7 +213,7 @@ export function CanvasNode({ data, selected, type: nodeTypeProp }: WorkflowNodeP
 
         {nodeType === "guardrail" && data?.guardrailType && (
           <div className="mt-4 pt-1">
-            <span className="inline-block rounded-full border border-zinc-500/20 bg-zinc-500/10 px-2.5 py-1 text-[11px] font-medium text-zinc-300">
+            <span className="border-border bg-muted text-muted-foreground inline-block rounded-xl border px-2.5 py-1 text-[11px] font-medium">
               {data.guardrailType}
             </span>
           </div>

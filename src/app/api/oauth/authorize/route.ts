@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
-import { oauthManager } from "@/lib/oauth-manager"
+import {
+  OAUTH_PKCE_COOKIE_NAME,
+  getOAuthPkceCookieSerializationOptions,
+  oauthManager,
+} from "@/lib/oauth-manager"
 
 export async function POST(request: Request) {
   const session = await auth()
@@ -11,9 +15,18 @@ export async function POST(request: Request) {
 
   try {
     const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api/oauth/callback`
-    const authUrl = await oauthManager.generateAuthUrl(connectorId, redirectUri)
+    const { authUrl, pkceCookieValue } = await oauthManager.generateAuthUrl(
+      connectorId,
+      redirectUri,
+    )
 
-    return NextResponse.json({ authUrl })
+    const res = NextResponse.json({ authUrl })
+    res.cookies.set(
+      OAUTH_PKCE_COOKIE_NAME,
+      pkceCookieValue,
+      getOAuthPkceCookieSerializationOptions(),
+    )
+    return res
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 })
   }

@@ -34,11 +34,11 @@ const categoryIcons: Record<string, LucideIcon> = {
 }
 
 const categoryColors: Record<string, string> = {
-  "customer-support": "text-indigo-300 bg-indigo-500/10 border border-indigo-500/20",
-  "data-analysis": "text-violet-300 bg-violet-500/10 border border-violet-500/20",
-  "content-creation": "text-zinc-200 bg-zinc-500/10 border border-zinc-500/20",
-  automation: "text-indigo-300 bg-indigo-500/10 border border-indigo-500/20",
-  research: "text-violet-300 bg-violet-500/10 border border-violet-500/20",
+  "customer-support": "text-primary border border-primary/20 bg-primary/10",
+  "data-analysis": "text-accent-foreground border border-accent-foreground/20 bg-accent",
+  "content-creation": "text-muted-foreground border border-border bg-muted",
+  automation: "text-primary border border-primary/20 bg-primary/10",
+  research: "text-accent-foreground border border-accent-foreground/20 bg-accent",
 }
 
 export function TemplatesLibrary() {

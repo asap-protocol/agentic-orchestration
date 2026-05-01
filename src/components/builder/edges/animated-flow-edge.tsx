@@ -1,6 +1,7 @@
 "use client"
 
 import { getBezierPath, type EdgeProps } from "@xyflow/react"
+import { WORKFLOW_EDGE_SOURCE, WORKFLOW_EDGE_TARGET } from "@/lib/design-tokens"
 import { GradientEdge } from "./gradient-edge"
 
 const INTERACTION_WIDTH = 20
@@ -21,8 +22,8 @@ export function AnimatedFlowEdge(props: EdgeProps) {
   }
 
   const gradientId = `gradient-${props.id}`
-  const sourceColor = (props.data?.sourceColor as string) ?? "#3b82f6"
-  const targetColor = (props.data?.targetColor as string) ?? "#94a3b8"
+  const sourceColor = (props.data?.sourceColor as string) ?? WORKFLOW_EDGE_SOURCE
+  const targetColor = (props.data?.targetColor as string) ?? WORKFLOW_EDGE_TARGET
 
   return (
     <>
