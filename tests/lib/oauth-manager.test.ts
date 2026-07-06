@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   OAUTH_PKCE_MAX_AGE_SECONDS,
+  getOAuthPkceCookieClearOptions,
+  getOAuthPkceCookieSerializationOptions,
   oauthManager,
   verifyPkceCookieValue,
 } from "@/lib/oauth-manager"
@@ -67,5 +69,26 @@ describe("oauth PKCE cookie", () => {
       "http://localhost:3000/cb",
     )
     await expect(verifyPkceCookieValue(pkceCookieValue, "wrong-state")).resolves.toBeNull()
+  })
+
+  it("sets secure cookie flags in production", () => {
+    vi.stubEnv("NODE_ENV", "production")
+    const options = getOAuthPkceCookieSerializationOptions()
+    expect(options.httpOnly).toBe(true)
+    expect(options.sameSite).toBe("lax")
+    expect(options.maxAge).toBe(OAUTH_PKCE_MAX_AGE_SECONDS)
+    expect(options.secure).toBe(true)
+  })
+
+  it("clears PKCE cookie with maxAge 0", () => {
+    const options = getOAuthPkceCookieClearOptions()
+    expect(options.maxAge).toBe(0)
+    expect(options.httpOnly).toBe(true)
+  })
+
+  it("generateAuthUrl throws for unknown connector", async () => {
+    await expect(
+      oauthManager.generateAuthUrl("not-a-real-connector", "http://localhost:3000/cb"),
+    ).rejects.toThrow(/not found/)
   })
 })
