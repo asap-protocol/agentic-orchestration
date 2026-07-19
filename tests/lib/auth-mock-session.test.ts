@@ -1,8 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
-import {
-  shouldUseStubAuthSession,
-  getStubAuthSession,
-} from "@/lib/auth-mock-session"
+import { shouldUseStubAuthSession, getStubAuthSession } from "@/lib/auth-mock-session"
 
 describe("shouldUseStubAuthSession", () => {
   afterEach(() => {
