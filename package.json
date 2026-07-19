@@ -117,5 +117,9 @@
     "typescript": "^5",
     "vitest": "^4.0.18"
   },
-  "packageManager": "pnpm@11.9.0"
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22.13",
+    "pnpm": ">=11.9.0"
+  }
 }
