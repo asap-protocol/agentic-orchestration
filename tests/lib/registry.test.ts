@@ -1,6 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import type { RegistryAgent } from "@/types/registry"
 import { fetchRegistryAgents, getRegistryCategories } from "@/lib/registry"
+
+const DEFAULT_REGISTRY_URL =
+  process.env.NEXT_PUBLIC_REGISTRY_URL ??
+  "https://raw.githubusercontent.com/asap-protocol/asap-protocol/main/registry.json"
+const DEFAULT_REVOKED_URL =
+  process.env.NEXT_PUBLIC_REVOKED_URL ??
+  "https://raw.githubusercontent.com/asap-protocol/asap-protocol/main/revoked_agents.json"
 
 const mockAgent1 = {
   id: "urn:asap:agent:user:agent-1",
@@ -49,6 +56,10 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 
+afterEach(() => {
+  vi.unstubAllEnvs()
+})
+
 describe("fetchRegistryAgents", () => {
   it("returns agents from valid registry response", async () => {
     const mockFetch = createFetchMock({ agents: [mockAgent1, mockAgent2] }, { revoked: [] })
@@ -62,7 +73,7 @@ describe("fetchRegistryAgents", () => {
     expect(result.error).toBeUndefined()
   })
 
-  it("filters out revoked agents", async () => {
+  it("filters out revoked agents with legacy id field in revoked payload", async () => {
     const mockFetch = createFetchMock(
       { agents: [mockAgent1, mockRevokedAgent] },
       {
@@ -81,6 +92,139 @@ describe("fetchRegistryAgents", () => {
 
     expect(result.agents).toHaveLength(1)
     expect(result.agents[0].name).toBe("Agent One")
+  })
+
+  it("filters out revoked agents (canonical urn in revoked payload)", async () => {
+    const mockFetch = createFetchMock(
+      { agents: [mockAgent1, mockRevokedAgent] },
+      {
+        revoked: [
+          {
+            urn: mockRevokedAgent.id,
+            revoked_at: "2026-01-01T00:00:00Z",
+            reason: "Violation",
+          },
+        ],
+      },
+    )
+    vi.stubGlobal("fetch", mockFetch)
+
+    const result = await fetchRegistryAgents()
+
+    expect(result.agents).toHaveLength(1)
+    expect(result.agents[0].name).toBe("Agent One")
+  })
+
+  it("passes cache no-store and no next.revalidate for revoked list fetch", async () => {
+    const mockFetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr = typeof url === "string" ? url : url.toString()
+      if (urlStr === DEFAULT_REGISTRY_URL) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ agents: [mockAgent1] }),
+        })
+      }
+      if (urlStr === DEFAULT_REVOKED_URL) {
+        expect(init).toMatchObject({ cache: "no-store", signal: expect.any(AbortSignal) })
+        expect(init).not.toHaveProperty("next")
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              revoked: [],
+            }),
+        })
+      }
+      throw new Error(`Unexpected fetch URL: ${urlStr}`)
+    })
+
+    vi.stubGlobal("fetch", mockFetch)
+
+    await fetchRegistryAgents()
+
+    const revokedCall = mockFetch.mock.calls.find(
+      (c) => typeof c[0] === "string" && c[0] === DEFAULT_REVOKED_URL,
+    )
+    expect(revokedCall).toBeDefined()
+    expect(revokedCall?.[1]).toMatchObject({ cache: "no-store" })
+    expect(revokedCall?.[1]).not.toHaveProperty("next")
+  })
+
+  it("uses default registry revalidate when NEXT_PUBLIC_REGISTRY_CACHE_SECONDS is unset", async () => {
+    vi.stubEnv("NEXT_PUBLIC_REGISTRY_CACHE_SECONDS", "")
+    const mockFetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr = typeof url === "string" ? url : url.toString()
+      if (urlStr === DEFAULT_REGISTRY_URL) {
+        expect(init).toMatchObject({ next: { revalidate: 60 } })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ agents: [mockAgent1] }),
+        })
+      }
+      if (urlStr === DEFAULT_REVOKED_URL) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ revoked: [] }),
+        })
+      }
+      throw new Error(`Unexpected fetch URL: ${urlStr}`)
+    })
+    vi.stubGlobal("fetch", mockFetch)
+
+    await fetchRegistryAgents()
+
+    const registryCall = mockFetch.mock.calls.find(
+      (c) => typeof c[0] === "string" && c[0] === DEFAULT_REGISTRY_URL,
+    )
+    expect(registryCall?.[1]).toMatchObject({ next: { revalidate: 60 } })
+  })
+
+  it("uses NEXT_PUBLIC_REGISTRY_CACHE_SECONDS for registry fetch revalidate", async () => {
+    vi.stubEnv("NEXT_PUBLIC_REGISTRY_CACHE_SECONDS", "120")
+    const mockFetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr = typeof url === "string" ? url : url.toString()
+      if (urlStr === DEFAULT_REGISTRY_URL) {
+        expect(init).toMatchObject({ next: { revalidate: 120 } })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ agents: [mockAgent1] }),
+        })
+      }
+      if (urlStr === DEFAULT_REVOKED_URL) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ revoked: [] }),
+        })
+      }
+      throw new Error(`Unexpected fetch URL: ${urlStr}`)
+    })
+    vi.stubGlobal("fetch", mockFetch)
+
+    await fetchRegistryAgents()
+  })
+
+  it("clamps NEXT_PUBLIC_REGISTRY_CACHE_SECONDS to max 3600", async () => {
+    vi.stubEnv("NEXT_PUBLIC_REGISTRY_CACHE_SECONDS", "99999")
+    const mockFetch = vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr = typeof url === "string" ? url : url.toString()
+      if (urlStr === DEFAULT_REGISTRY_URL) {
+        expect(init).toMatchObject({ next: { revalidate: 3600 } })
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ agents: [mockAgent1] }),
+        })
+      }
+      if (urlStr === DEFAULT_REVOKED_URL) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ revoked: [] }),
+        })
+      }
+      throw new Error(`Unexpected fetch URL: ${urlStr}`)
+    })
+    vi.stubGlobal("fetch", mockFetch)
+
+    await fetchRegistryAgents()
   })
 
   it("returns empty array with error on network failure", async () => {

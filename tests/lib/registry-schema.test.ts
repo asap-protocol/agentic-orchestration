@@ -132,6 +132,54 @@ describe("revokedResponseSchema", () => {
       ],
     })
     expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.revoked[0].urn).toBe("urn:asap:agent:user:revoked")
+    }
+  })
+
+  it("accepts canonical urn on revoked entries", () => {
+    const result = revokedResponseSchema.safeParse({
+      revoked: [
+        {
+          urn: "urn:asap:agent:user:revoked-canonical",
+          revoked_at: "2026-01-01T00:00:00Z",
+          reason: "Violation",
+        },
+      ],
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.revoked[0].urn).toBe("urn:asap:agent:user:revoked-canonical")
+    }
+  })
+
+  it("prefers urn when both urn and id are present", () => {
+    const result = revokedResponseSchema.safeParse({
+      revoked: [
+        {
+          urn: "urn:asap:agent:user:preferred",
+          id: "urn:asap:agent:user:legacy-fallback",
+          revoked_at: "2026-01-01T00:00:00Z",
+          reason: "Violation",
+        },
+      ],
+    })
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.revoked[0].urn).toBe("urn:asap:agent:user:preferred")
+    }
+  })
+
+  it("rejects revoked entry missing both urn and id", () => {
+    const result = revokedResponseSchema.safeParse({
+      revoked: [
+        {
+          revoked_at: "2026-01-01T00:00:00Z",
+          reason: "Violation",
+        },
+      ],
+    })
+    expect(result.success).toBe(false)
   })
 
   it("validates empty revoked agents", () => {
