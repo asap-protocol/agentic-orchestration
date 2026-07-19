@@ -14,7 +14,7 @@ const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_A
 export function isE2ERateLimitBypass(): boolean {
   return (
     process.env.NODE_ENV !== "production" &&
-    (process.env.PLAYWRIGHT_E2E === "1" || process.env.CI === "true")
+    (process.env["PLAYWRIGHT_E2E"] === "1" || process.env.CI === "true")
   )
 }
 

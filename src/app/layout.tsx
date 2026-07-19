@@ -10,6 +10,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from "@/components/theme-provider"
 import { AuthProvider } from "@/components/auth-provider"
 import { CSP_NONCE_HEADER } from "@/lib/csp-nonce-header"
+import { auth } from "@/auth"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -53,6 +54,7 @@ export default async function RootLayout({
 }>) {
   // Set by src/proxy.ts on each request. If absent (e.g. misconfigured matcher), inline script may be blocked by CSP.
   const nonce = (await headers()).get(CSP_NONCE_HEADER) ?? undefined
+  const session = await auth()
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -80,7 +82,7 @@ export default async function RootLayout({
         suppressHydrationWarning
       >
         <ThemeProvider attribute="class" defaultTheme="dark" storageKey="agent-builder-theme">
-          <AuthProvider>
+          <AuthProvider session={session}>
             <div className="bg-background text-foreground flex h-screen">
               <Sidebar />
               <main className="flex-1 overflow-auto pt-14 lg:pt-0">{children}</main>

@@ -1,20 +1,19 @@
 "use client"
 
+import type { ReactNode } from "react"
+import type { Session } from "next-auth"
 import { SessionProvider } from "next-auth/react"
 
-const MOCK_SESSION = {
-  user: {
-    id: "mock-user-id",
-    name: "Dev User",
-    email: "dev@example.com",
-    username: "devuser",
-    image: null,
-  },
-  expires: new Date(Date.now() + 3600 * 1000).toISOString(),
-}
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const session = process.env.NODE_ENV === "development" ? MOCK_SESSION : undefined
-
-  return <SessionProvider session={session}>{children}</SessionProvider>
+/**
+ * Hydrates client `useSession` from the App Router session returned by `await auth()` (see root layout).
+ * Required for Playwright/E2E: without this, SSR can see the stub session while the client stays unauthenticated.
+ */
+export function AuthProvider({
+  children,
+  session,
+}: {
+  children: ReactNode
+  session: Session | null
+}) {
+  return <SessionProvider session={session ?? undefined}>{children}</SessionProvider>
 }
