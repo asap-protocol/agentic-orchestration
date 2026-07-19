@@ -2,6 +2,7 @@ import NextAuth from "next-auth"
 import type { NextAuthConfig } from "next-auth"
 import GitHub from "next-auth/providers/github"
 import { resolveRedirectUrl } from "@/lib/auth-redirect"
+import { getStubAuthSession, shouldUseStubAuthSession } from "@/lib/auth-mock-session"
 
 const config: NextAuthConfig = {
   providers: [
@@ -46,22 +47,10 @@ const config: NextAuthConfig = {
 
 export const { handlers, auth: authInternal, signIn, signOut } = NextAuth(config)
 
-// Export a wrapped auth that provides a mock session in development and E2E.
-// The double guard (NODE_ENV !== "production" AND an explicit dev/E2E flag)
-// ensures this bypass can never accidentally activate in production builds.
+// Wrapped auth — see `shouldUseStubAuthSession` / `playwright.config` (PLAYWRIGHT_E2E=1 on `next start`).
 export const auth = (async () => {
-  const isProduction = process.env.NODE_ENV === "production"
-  const isDevOrE2E = process.env.NODE_ENV === "development" || process.env.PLAYWRIGHT_E2E === "1"
-  if (!isProduction && isDevOrE2E) {
-    return {
-      user: {
-        id: "00000000-0000-0000-0000-000000000001",
-        name: "Dev User",
-        email: "dev@example.com",
-        username: "devuser",
-      },
-      expires: new Date(Date.now() + 3600 * 1000).toISOString(),
-    }
+  if (shouldUseStubAuthSession()) {
+    return getStubAuthSession()
   }
   return authInternal()
 }) as typeof authInternal
