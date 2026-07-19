@@ -56,3 +56,6 @@ test-output.txt
 /playwright/.cache/
 *.bak
 .env*.local
+
+# pnpm
+.pnpm-store/
