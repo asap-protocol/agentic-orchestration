@@ -52,7 +52,7 @@ alwaysApply: true
 - `src/components/`: Feature-specific components.
 - `src/lib/`: Utilities and generic helpers.
 - `src/hooks/`: Custom React hooks.
-- Aligned with [ASAP Protocol Lean Marketplace](https://github.com/adriannoes/asap-protocol) for future integration.
+- Aligned with [ASAP Protocol Lean Marketplace](https://github.com/asap-protocol/asap-protocol) for future integration.
 
 ## 7. State Management
 1. **URL State**: Query params (`?search=foo`) for shareable state.
