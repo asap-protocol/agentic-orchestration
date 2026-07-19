@@ -1,6 +1,5 @@
 import js from "@eslint/js"
 import ts from "typescript-eslint"
-import reactHooks from "eslint-plugin-react-hooks"
 import nextVitals from "eslint-config-next/core-web-vitals"
 import nextTypescript from "eslint-config-next/typescript"
 
@@ -10,9 +9,7 @@ export default [
   ...nextVitals,
   ...nextTypescript,
   {
-    plugins: {
-      "react-hooks": reactHooks,
-    },
+    // react-hooks plugin already registered by eslint-config-next — do not redeclare under pnpm.
     rules: {
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",

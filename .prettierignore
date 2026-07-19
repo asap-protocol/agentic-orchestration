@@ -1,2 +1,4 @@
 # Local-only, not committed
 .cursor/
+
+pnpm-lock.yaml
