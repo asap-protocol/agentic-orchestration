@@ -57,11 +57,31 @@ export const registryResponseSchema = z.object({
   agents: z.array(registryAgentSchema),
 })
 
-export const revokedAgentSchema = z.object({
-  id: z.string(),
-  revoked_at: z.string(),
-  reason: z.string(),
-})
+/** Canonical ASAP shape uses `urn`; legacy payloads may use `id` only. */
+export const revokedAgentSchema = z
+  .object({
+    urn: z.string().optional(),
+    id: z.string().optional(),
+    revoked_at: z.string(),
+    reason: z.string(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.urn && !data.id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Revoked entry must include urn or id",
+        path: ["urn"],
+      })
+    }
+  })
+  .transform((data) => {
+    const urn = data.urn ?? data.id
+    return {
+      urn: urn as string,
+      revoked_at: data.revoked_at,
+      reason: data.reason,
+    }
+  })
 
 export const revokedResponseSchema = z.object({
   revoked: z.array(revokedAgentSchema),
