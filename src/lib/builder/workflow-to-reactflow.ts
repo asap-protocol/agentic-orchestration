@@ -47,6 +47,18 @@ export interface WorkflowConnectionsToEdgesOptions {
   runningEdgeIds?: string[]
 }
 
+/**
+ * Connection ids that touch a node (as source or target). Used for run-edge highlight.
+ *
+ * @example
+ * connectionIdsTouchingNode(connections, "n2") // ["e1", "e2"]
+ */
+export function connectionIdsTouchingNode(connections: Connection[], nodeId: string): string[] {
+  return (connections || [])
+    .filter((c) => c.sourceId === nodeId || c.targetId === nodeId)
+    .map((c) => c.id)
+}
+
 export function workflowConnectionsToEdges(
   connections: Connection[],
   options: WorkflowConnectionsToEdgesOptions = {},
