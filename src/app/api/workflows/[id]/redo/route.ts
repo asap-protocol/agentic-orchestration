@@ -1,30 +1,16 @@
+// Deprecated; use client HistoryManager for undo/redo (Builder Hardening Sprint 0).
 import { type NextRequest, NextResponse } from "next/server"
 import { withWorkspace } from "@/lib/api/with-workspace"
-import { getWorkflow, updateWorkflow } from "@/lib/db/workflows"
-import { getHistoryManager } from "@/lib/history-manager"
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(_request: NextRequest, _ctx: { params: Promise<{ id: string }> }) {
   const result = await withWorkspace()
   if (result.error) return result.error
 
-  const { id: workflowId } = await params
-  const workflow = await getWorkflow(workflowId)
-
-  if (!workflow) {
-    return NextResponse.json({ error: "Workflow not found" }, { status: 404 })
-  }
-
-  const historyManager = getHistoryManager(workflowId)
-  const nextWorkflow = historyManager.redo(workflow)
-
-  if (!nextWorkflow) {
-    return NextResponse.json({ error: "Nothing to redo" }, { status: 400 })
-  }
-
-  const updated = await updateWorkflow(workflowId, {
-    nodes: nextWorkflow.nodes,
-    connections: nextWorkflow.connections,
-  })
-
-  return NextResponse.json(updated)
+  return NextResponse.json(
+    {
+      error:
+        "This redo endpoint is gone (410). Undo/redo are client-only via HistoryManager (Builder Hardening Sprint 0).",
+    },
+    { status: 410 },
+  )
 }

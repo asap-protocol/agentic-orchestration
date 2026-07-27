@@ -1,16 +1,16 @@
+// Deprecated; use client HistoryManager for history status (Builder Hardening Sprint 0).
 import { type NextRequest, NextResponse } from "next/server"
 import { withWorkspace } from "@/lib/api/with-workspace"
-import { getHistoryManager } from "@/lib/history-manager"
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(_request: NextRequest, _ctx: { params: Promise<{ id: string }> }) {
   const result = await withWorkspace()
   if (result.error) return result.error
 
-  const { id: workflowId } = await params
-  const historyManager = getHistoryManager(workflowId)
-
-  return NextResponse.json({
-    canUndo: historyManager.canUndo(),
-    canRedo: historyManager.canRedo(),
-  })
+  return NextResponse.json(
+    {
+      error:
+        "This history status endpoint is gone (410). Undo/redo/history status are client-only via HistoryManager (Builder Hardening Sprint 0).",
+    },
+    { status: 410 },
+  )
 }
