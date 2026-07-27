@@ -467,39 +467,56 @@ function BuilderCanvasInner() {
   const selectedNodeId = nodes.find((n) => n.selected)?.id ?? null
   const selectedNode = workflow?.nodes?.find((n) => n.id === selectedNodeId)
 
-  const handleUndo = useCallback(async () => {
-    if (!workflowId || !workflow) return
-    const historyManager = getHistoryManager(workflowId)
-    const previous = historyManager.undo(workflow)
-    if (!previous) return
-    syncHistoryFlags(workflowId)
-    await safeFetch(`/api/workflows/${workflowId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nodes: previous.nodes,
-        connections: previous.connections,
-      }),
-    })
-    mutateWorkflow(workflowId)
-  }, [workflowId, workflow, syncHistoryFlags, mutateWorkflow, safeFetch])
+  const applyHistoryTransition = useCallback(
+    async (direction: "undo" | "redo") => {
+      if (!workflowId || !workflow) return
+      const historyManager = getHistoryManager(workflowId)
+      let snapshot: Workflow | null
+      switch (direction) {
+        case "undo":
+          snapshot = historyManager.undo(workflow)
+          break
+        case "redo":
+          snapshot = historyManager.redo(workflow)
+          break
+        default: {
+          const _exhaustive: never = direction
+          return _exhaustive
+        }
+      }
+      if (!snapshot) return
+      syncHistoryFlags(workflowId)
+      const response = await safeFetch(`/api/workflows/${workflowId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nodes: snapshot.nodes,
+          connections: snapshot.connections,
+        }),
+      })
+      if (!response.ok) {
+        switch (direction) {
+          case "undo":
+            historyManager.redo(snapshot)
+            break
+          case "redo":
+            historyManager.undo(snapshot)
+            break
+          default: {
+            const _exhaustive: never = direction
+            return _exhaustive
+          }
+        }
+        syncHistoryFlags(workflowId)
+        return
+      }
+      mutateWorkflow(workflowId)
+    },
+    [workflowId, workflow, syncHistoryFlags, mutateWorkflow, safeFetch],
+  )
 
-  const handleRedo = useCallback(async () => {
-    if (!workflowId || !workflow) return
-    const historyManager = getHistoryManager(workflowId)
-    const next = historyManager.redo(workflow)
-    if (!next) return
-    syncHistoryFlags(workflowId)
-    await safeFetch(`/api/workflows/${workflowId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nodes: next.nodes,
-        connections: next.connections,
-      }),
-    })
-    mutateWorkflow(workflowId)
-  }, [workflowId, workflow, syncHistoryFlags, mutateWorkflow, safeFetch])
+  const handleUndo = useCallback(() => applyHistoryTransition("undo"), [applyHistoryTransition])
+  const handleRedo = useCallback(() => applyHistoryTransition("redo"), [applyHistoryTransition])
 
   const handleCopy = useCallback(async () => {
     if (!selectedNodeId || !workflowId) return

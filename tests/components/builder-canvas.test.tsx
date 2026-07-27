@@ -4,7 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { BuilderCanvas } from "@/components/builder/builder-canvas"
 import { getHistoryManager } from "@/lib/history-manager"
-import useSWR from "swr"
+import useSWR, { mutate } from "swr"
 import type { Workflow, WorkflowNode } from "@/lib/workflow-types"
 
 const { mockWorkflow, mockWorkflows, baseSWR, mockSetNodes, mockSetEdges } = vi.hoisted(() => {
@@ -315,6 +315,102 @@ describe("BuilderCanvas", () => {
       expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled()
       expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled()
     })
+  })
+
+  it("rolls back undo stacks and skips SWR mutate when PATCH fails", async () => {
+    const user = userEvent.setup()
+    const emptyGraph = {
+      ...mockWorkflow,
+      nodes: [] as WorkflowNode[],
+      connections: [],
+    }
+    getHistoryManager("wf-1").saveState(emptyGraph)
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: "persist failed" }),
+      clone() {
+        return this
+      },
+      text: async () => "",
+    }) as unknown as typeof fetch
+
+    render(<BuilderCanvas />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled()
+      expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled()
+    })
+
+    vi.mocked(mutate).mockClear()
+
+    await user.click(screen.getByRole("button", { name: "Undo" }))
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/workflows/wf-1",
+        expect.objectContaining({ method: "PATCH" }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled()
+      expect(screen.getByRole("button", { name: "Redo" })).toBeDisabled()
+    })
+
+    expect(mutate).not.toHaveBeenCalledWith("/api/workflows/wf-1")
+    expect(getHistoryManager("wf-1").canUndo()).toBe(true)
+    expect(getHistoryManager("wf-1").canRedo()).toBe(false)
+  })
+
+  it("rolls back redo stacks and skips SWR mutate when PATCH fails", async () => {
+    const user = userEvent.setup()
+    const emptyGraph = {
+      ...mockWorkflow,
+      nodes: [] as WorkflowNode[],
+      connections: [],
+    }
+    const manager = getHistoryManager("wf-1")
+    manager.saveState(emptyGraph)
+    manager.undo(mockWorkflow)
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: "persist failed" }),
+      clone() {
+        return this
+      },
+      text: async () => "",
+    }) as unknown as typeof fetch
+
+    render(<BuilderCanvas />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Redo" })).toBeEnabled()
+      expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled()
+    })
+
+    vi.mocked(mutate).mockClear()
+
+    await user.click(screen.getByRole("button", { name: "Redo" }))
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/workflows/wf-1",
+        expect.objectContaining({ method: "PATCH" }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Redo" })).toBeEnabled()
+      expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled()
+    })
+
+    expect(mutate).not.toHaveBeenCalledWith("/api/workflows/wf-1")
+    expect(getHistoryManager("wf-1").canRedo()).toBe(true)
+    expect(getHistoryManager("wf-1").canUndo()).toBe(false)
   })
 
   it("restores a version by PATCHing that version's nodes/connections", async () => {
