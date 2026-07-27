@@ -31,7 +31,14 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import type { WorkflowNode, Position, NodeType, Workflow, Connection } from "@/lib/workflow-types"
+import type {
+  WorkflowNode,
+  Position,
+  NodeType,
+  Workflow,
+  Connection,
+  WorkflowVersion,
+} from "@/lib/workflow-types"
 import { NodeSidebar } from "./node-sidebar"
 import { CanvasNode } from "./canvas-node"
 import { FrameNode } from "./frame-node"
@@ -49,6 +56,7 @@ import {
   workflowNodesToReactFlow,
   workflowConnectionsToEdges,
   reactFlowEdgesToConnections,
+  connectionIdsTouchingNode,
 } from "@/lib/builder/workflow-to-reactflow"
 import { edgeTypes } from "./edges"
 import type { WorkflowNodeData, WorkflowNodeProps } from "./canvas-node"
@@ -151,11 +159,6 @@ function BuilderCanvasInner() {
       revalidateOnReconnect: false,
     },
   )
-  const { data: historyStatus } = useSWR<{ canUndo: boolean; canRedo: boolean } | null>(
-    workflowId ? `/api/workflows/${workflowId}/history/status` : null,
-    fetcher,
-    { revalidateOnFocus: false },
-  )
 
   const [showSidebar, setShowSidebar] = useState(true)
   const [showProperties, setShowProperties] = useState(true)
@@ -163,19 +166,28 @@ function BuilderCanvasInner() {
   const [showExecutionMonitor, setShowExecutionMonitor] = useState(false)
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null)
-  const [highlightedEdgeIds, _setHighlightedEdgeIds] = useState<string[]>([])
+  const [highlightedEdgeIds, setHighlightedEdgeIds] = useState<string[]>([])
   const [isLayoutTransitioning, setIsLayoutTransitioning] = useState(false)
+  // Bumped after history mutations so canUndo/canRedo re-read from the client manager.
+  const [historyEpoch, setHistoryEpoch] = useState(0)
+
+  const syncHistoryFlags = useCallback((_workflowKey: string) => {
+    setHistoryEpoch((epoch) => epoch + 1)
+  }, [])
+
+  const canUndo = historyEpoch >= 0 && workflowId ? getHistoryManager(workflowId).canUndo() : false
+  const canRedo = historyEpoch >= 0 && workflowId ? getHistoryManager(workflowId).canRedo() : false
 
   const saveToHistory = useCallback(() => {
     if (workflow && workflowId) {
       const historyManager = getHistoryManager(workflowId)
       historyManager.saveState(workflow)
+      syncHistoryFlags(workflowId)
     }
-  }, [workflow, workflowId])
+  }, [workflow, workflowId, syncHistoryFlags])
 
-  const mutateWorkflowAndHistory = useCallback((id: string) => {
+  const mutateWorkflow = useCallback((id: string) => {
     mutate(`/api/workflows/${id}`)
-    mutate(`/api/workflows/${id}/history/status`)
   }, [])
 
   const [menuType, setMenuType] = useState<"node" | "pane" | null>(null)
@@ -210,9 +222,9 @@ function BuilderCanvasInner() {
       if (!workflowId) return
       saveToHistory()
       await safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, { method: "DELETE" })
-      mutateWorkflowAndHistory(workflowId)
+      mutateWorkflow(workflowId)
     },
-    [workflowId, saveToHistory, mutateWorkflowAndHistory, safeFetch],
+    [workflowId, saveToHistory, mutateWorkflow, safeFetch],
   )
 
   const handleAssignToFrame = useCallback(
@@ -224,10 +236,10 @@ function BuilderCanvasInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ parentId: frameId }),
       })
-      mutateWorkflowAndHistory(workflowId)
+      mutateWorkflow(workflowId)
       toast({ title: "Node added to frame" })
     },
-    [workflowId, saveToHistory, mutateWorkflowAndHistory, toast, safeFetch],
+    [workflowId, saveToHistory, mutateWorkflow, toast, safeFetch],
   )
 
   const handleRemoveFromFrame = useCallback(
@@ -239,10 +251,10 @@ function BuilderCanvasInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ parentId: null }),
       })
-      mutateWorkflowAndHistory(workflowId)
+      mutateWorkflow(workflowId)
       toast({ title: "Node removed from frame" })
     },
-    [workflowId, saveToHistory, mutateWorkflowAndHistory, toast, safeFetch],
+    [workflowId, saveToHistory, mutateWorkflow, toast, safeFetch],
   )
 
   const handleFrameLabelChange = useCallback(
@@ -256,9 +268,9 @@ function BuilderCanvasInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: { ...node.data, label: newLabel } }),
       })
-      mutateWorkflowAndHistory(workflowId)
+      mutateWorkflow(workflowId)
     },
-    [workflowId, workflow?.nodes, saveToHistory, mutateWorkflowAndHistory, safeFetch],
+    [workflowId, workflow?.nodes, saveToHistory, mutateWorkflow, safeFetch],
   )
 
   const initialNodes = workflow
@@ -343,10 +355,10 @@ function BuilderCanvasInner() {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ connections: reactFlowEdgesToConnections(updatedEdges) }),
-        }).then(() => mutateWorkflowAndHistory(workflowId!))
+        }).then(() => mutateWorkflow(workflowId!))
       }
     },
-    [onEdgesChange, edges, workflowId, saveToHistory, mutateWorkflowAndHistory, safeFetch],
+    [onEdgesChange, edges, workflowId, saveToHistory, mutateWorkflow, safeFetch],
   )
 
   const handleConnect = useCallback(
@@ -363,9 +375,9 @@ function BuilderCanvasInner() {
           targetHandle: connection.targetHandle ?? undefined,
         }),
       })
-      mutateWorkflowAndHistory(workflowId)
+      mutateWorkflow(workflowId)
     },
-    [workflowId, saveToHistory, mutateWorkflowAndHistory, safeFetch],
+    [workflowId, saveToHistory, mutateWorkflow, safeFetch],
   )
 
   const handleNodeDragStop = useCallback(
@@ -381,9 +393,9 @@ function BuilderCanvasInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ position: snappedPosition }),
       })
-      mutateWorkflowAndHistory(workflowId)
+      mutateWorkflow(workflowId)
     },
-    [workflowId, saveToHistory, mutateWorkflowAndHistory, safeFetch],
+    [workflowId, saveToHistory, mutateWorkflow, safeFetch],
   )
 
   const handleAddNode = useCallback(
@@ -443,16 +455,9 @@ function BuilderCanvasInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nodePayload),
       })
-      mutateWorkflowAndHistory(workflowId)
+      mutateWorkflow(workflowId)
     },
-    [
-      workflowId,
-      workflow?.nodes,
-      saveToHistory,
-      mutateWorkflowAndHistory,
-      screenToFlowPosition,
-      safeFetch,
-    ],
+    [workflowId, workflow?.nodes, saveToHistory, mutateWorkflow, screenToFlowPosition, safeFetch],
   )
 
   const handleAddFrame = useCallback(() => {
@@ -463,16 +468,38 @@ function BuilderCanvasInner() {
   const selectedNode = workflow?.nodes?.find((n) => n.id === selectedNodeId)
 
   const handleUndo = useCallback(async () => {
-    if (!workflowId) return
-    await safeFetch(`/api/workflows/${workflowId}/undo`, { method: "POST" })
-    mutateWorkflowAndHistory(workflowId)
-  }, [workflowId, mutateWorkflowAndHistory, safeFetch])
+    if (!workflowId || !workflow) return
+    const historyManager = getHistoryManager(workflowId)
+    const previous = historyManager.undo(workflow)
+    if (!previous) return
+    syncHistoryFlags(workflowId)
+    await safeFetch(`/api/workflows/${workflowId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nodes: previous.nodes,
+        connections: previous.connections,
+      }),
+    })
+    mutateWorkflow(workflowId)
+  }, [workflowId, workflow, syncHistoryFlags, mutateWorkflow, safeFetch])
 
   const handleRedo = useCallback(async () => {
-    if (!workflowId) return
-    await safeFetch(`/api/workflows/${workflowId}/redo`, { method: "POST" })
-    mutateWorkflowAndHistory(workflowId)
-  }, [workflowId, mutateWorkflowAndHistory, safeFetch])
+    if (!workflowId || !workflow) return
+    const historyManager = getHistoryManager(workflowId)
+    const next = historyManager.redo(workflow)
+    if (!next) return
+    syncHistoryFlags(workflowId)
+    await safeFetch(`/api/workflows/${workflowId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        nodes: next.nodes,
+        connections: next.connections,
+      }),
+    })
+    mutateWorkflow(workflowId)
+  }, [workflowId, workflow, syncHistoryFlags, mutateWorkflow, safeFetch])
 
   const handleCopy = useCallback(async () => {
     if (!selectedNodeId || !workflowId) return
@@ -503,12 +530,12 @@ function BuilderCanvasInner() {
     })
     if (response.ok) {
       const result = await response.json()
-      mutateWorkflowAndHistory(workflowId)
+      mutateWorkflow(workflowId)
       toast({ title: `Pasted ${result.nodeIds?.length ?? 0} node(s)` })
     } else {
       toast({ title: "Nothing to paste", variant: "destructive" })
     }
-  }, [workflowId, saveToHistory, mutateWorkflowAndHistory, toast, safeFetch])
+  }, [workflowId, saveToHistory, mutateWorkflow, toast, safeFetch])
 
   const handleDuplicate = useCallback(async () => {
     if (!selectedNodeId || !workflowId) return
@@ -533,16 +560,44 @@ function BuilderCanvasInner() {
       }),
     })
     if (pasteRes.ok) {
-      mutateWorkflowAndHistory(workflowId)
+      mutateWorkflow(workflowId)
       toast({ title: "Node duplicated" })
     }
-  }, [selectedNodeId, workflowId, saveToHistory, mutateWorkflowAndHistory, toast, safeFetch])
+  }, [selectedNodeId, workflowId, saveToHistory, mutateWorkflow, toast, safeFetch])
 
   const handleSelectAll = useCallback(() => {
-    if (workflow?.nodes.length) {
-      setNodes((nds) => nds.map((n) => ({ ...n, selected: n.id === workflow.nodes[0].id })))
+    setNodes((nds) => nds.map((n) => ({ ...n, selected: true })))
+    setEdges((eds) => eds.map((e) => ({ ...e, selected: true })))
+  }, [setNodes, setEdges])
+
+  const clearExecutionHighlights = useCallback(() => {
+    setHighlightedNodeId(null)
+    setHighlightedEdgeIds([])
+  }, [])
+
+  const handleNodeHighlight = useCallback(
+    (nodeId: string | null) => {
+      setHighlightedNodeId(nodeId)
+      if (!nodeId) {
+        setHighlightedEdgeIds([])
+        return
+      }
+      setHighlightedEdgeIds(connectionIdsTouchingNode(workflow?.connections ?? [], nodeId))
+    },
+    [workflow?.connections],
+  )
+
+  const handleCloseExecutionMonitor = useCallback(() => {
+    setShowExecutionMonitor(false)
+    clearExecutionHighlights()
+  }, [clearExecutionHighlights])
+
+  const handleToggleExecutionMonitor = useCallback(() => {
+    if (showExecutionMonitor) {
+      clearExecutionHighlights()
     }
-  }, [workflow, setNodes])
+    setShowExecutionMonitor(!showExecutionMonitor)
+  }, [showExecutionMonitor, clearExecutionHighlights])
 
   const handleAutoLayout = useCallback(async () => {
     if (!workflowId) return
@@ -554,7 +609,7 @@ function BuilderCanvasInner() {
     setIsLayoutTransitioning(true)
     const response = await safeFetch(`/api/workflows/${workflowId}/auto-layout`, { method: "POST" })
     if (response.ok) {
-      mutateWorkflowAndHistory(workflowId)
+      mutateWorkflow(workflowId)
       toast({ title: "Layout applied successfully" })
       layoutTransitionTimeoutRef.current = setTimeout(() => {
         layoutTransitionTimeoutRef.current = null
@@ -564,7 +619,7 @@ function BuilderCanvasInner() {
       setIsLayoutTransitioning(false)
       toast({ title: "Failed to apply layout", variant: "destructive" })
     }
-  }, [workflowId, saveToHistory, mutateWorkflowAndHistory, toast, safeFetch])
+  }, [workflowId, saveToHistory, mutateWorkflow, toast, safeFetch])
 
   useEffect(() => {
     return () => {
@@ -579,8 +634,8 @@ function BuilderCanvasInner() {
     if (!selectedNodeId || !workflowId) return
     saveToHistory()
     await safeFetch(`/api/workflows/${workflowId}/nodes/${selectedNodeId}`, { method: "DELETE" })
-    mutateWorkflowAndHistory(workflowId)
-  }, [selectedNodeId, workflowId, saveToHistory, mutateWorkflowAndHistory, safeFetch])
+    mutateWorkflow(workflowId)
+  }, [selectedNodeId, workflowId, saveToHistory, mutateWorkflow, safeFetch])
 
   const handleDuplicateById = useCallback(
     async (nodeId: string) => {
@@ -602,11 +657,11 @@ function BuilderCanvasInner() {
         }),
       })
       if (pasteRes.ok) {
-        mutateWorkflowAndHistory(workflowId)
+        mutateWorkflow(workflowId)
         toast({ title: "Node duplicated" })
       }
     },
-    [workflowId, saveToHistory, mutateWorkflowAndHistory, toast, safeFetch],
+    [workflowId, saveToHistory, mutateWorkflow, toast, safeFetch],
   )
 
   const handleCopyById = useCallback(
@@ -643,6 +698,28 @@ function BuilderCanvasInner() {
       body: JSON.stringify({ description: "Manual save" }),
     })
   }, [workflowId, safeFetch])
+
+  const handleRestoreVersion = useCallback(
+    async (version: WorkflowVersion) => {
+      if (!workflowId || !workflow) return
+      saveToHistory()
+      const response = await safeFetch(`/api/workflows/${workflowId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nodes: version.nodes,
+          connections: version.connections,
+        }),
+      })
+      if (!response.ok) return
+      mutateWorkflow(workflowId)
+      toast({
+        title: "Version restored",
+        description: `Restored ${version.name}`,
+      })
+    },
+    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch, toast],
+  )
 
   const { zoomIn, zoomOut, fitView } = useReactFlow()
 
@@ -748,7 +825,7 @@ function BuilderCanvasInner() {
 
   if (isUnauthorized) {
     return (
-      <div className="bg-background flex h-screen flex-col items-center justify-center gap-4">
+      <div className="bg-background flex h-full min-h-0 flex-col items-center justify-center gap-4">
         <LogIn className="text-muted-foreground h-12 w-12" />
         <p className="text-muted-foreground">Sign in to access the workflow builder</p>
         <Button asChild>
@@ -760,7 +837,7 @@ function BuilderCanvasInner() {
 
   if (workflowsError) {
     return (
-      <div className="bg-background flex h-screen flex-col items-center justify-center gap-4">
+      <div className="bg-background flex h-full min-h-0 flex-col items-center justify-center gap-4">
         <div className="text-destructive text-lg font-semibold">Failed to load workflow data</div>
         <p className="text-muted-foreground">
           {workflowsError.message || "Database connection required."}
@@ -774,7 +851,7 @@ function BuilderCanvasInner() {
 
   if (workflows && workflows.length === 0 && creationFailed) {
     return (
-      <div className="bg-background flex h-screen flex-col items-center justify-center gap-4">
+      <div className="bg-background flex h-full min-h-0 flex-col items-center justify-center gap-4">
         <div className="text-muted-foreground text-lg font-semibold">No Workspaces Detected</div>
         <p className="text-muted-foreground text-sm">
           Please create a Project Workspace first via the main Dashboard.
@@ -789,7 +866,7 @@ function BuilderCanvasInner() {
   const hasWorkflowData = workflow != null
   if (isLoadingWorkflows || !workflowId || (!hasWorkflowData && isLoading)) {
     return (
-      <div className="bg-background flex h-screen items-center justify-center">
+      <div className="bg-background flex h-full min-h-0 items-center justify-center">
         <div className="text-muted-foreground">Loading workflow...</div>
       </div>
     )
@@ -798,16 +875,16 @@ function BuilderCanvasInner() {
   const viewport = getViewport()
 
   return (
-    <div className="bg-background flex h-screen overflow-hidden">
+    <div className="bg-background flex h-full min-h-0 overflow-hidden">
       <NodeSidebar
         isOpen={showSidebar}
         onToggle={() => setShowSidebar(!showSidebar)}
         onAddNode={handleAddNode}
       />
 
-      <div className="relative flex flex-1 flex-col">
+      <div className="relative flex min-h-0 flex-1 flex-col">
         <div className="absolute top-4 right-4 left-4 z-50" data-testid="builder-toolbar">
-          <GlassContainer className="flex items-center gap-3 px-3 py-2 shadow-sm">
+          <GlassContainer className="shadow-sm" innerClassName="flex items-center gap-3 px-3 py-2">
             <div className="flex min-w-0 items-center gap-3">
               <h1 className="truncate text-sm font-semibold tracking-tight">
                 {workflow?.name || "Untitled Workflow"}
@@ -836,7 +913,7 @@ function BuilderCanvasInner() {
                 size="icon"
                 className="hover:bg-accent h-8 w-8 rounded-lg"
                 onClick={handleUndo}
-                disabled={!historyStatus?.canUndo}
+                disabled={!canUndo}
                 aria-label="Undo"
                 title="Undo"
               >
@@ -847,7 +924,7 @@ function BuilderCanvasInner() {
                 size="icon"
                 className="hover:bg-accent h-8 w-8 rounded-lg"
                 onClick={handleRedo}
-                disabled={!historyStatus?.canRedo}
+                disabled={!canRedo}
                 aria-label="Redo"
                 title="Redo"
               >
@@ -915,7 +992,7 @@ function BuilderCanvasInner() {
                 variant="outline"
                 size="sm"
                 className="border-primary/20 bg-primary/10 text-primary hover:bg-primary/20 ml-1 h-8 gap-2 rounded-xl"
-                onClick={() => setShowExecutionMonitor(!showExecutionMonitor)}
+                onClick={handleToggleExecutionMonitor}
               >
                 <Play className="h-3.5 w-3.5" />
                 {showExecutionMonitor ? "Close" : "Run"}
@@ -1073,14 +1150,14 @@ function BuilderCanvasInner() {
         workflowId={workflowId}
         isOpen={showVersionHistory}
         onToggle={() => setShowVersionHistory(!showVersionHistory)}
-        onRestoreVersion={(_version) => {}}
+        onRestoreVersion={handleRestoreVersion}
       />
 
       <ExecutionMonitor
         workflowId={workflowId}
         isOpen={showExecutionMonitor}
-        onClose={() => setShowExecutionMonitor(false)}
-        onNodeHighlight={setHighlightedNodeId}
+        onClose={handleCloseExecutionMonitor}
+        onNodeHighlight={handleNodeHighlight}
       />
 
       <BuilderCommandPalette
@@ -1095,8 +1172,8 @@ function BuilderCanvasInner() {
         onFitView={handleResetView}
         onAddNode={handleAddNode}
         onAddFrame={handleAddFrame}
-        canUndo={historyStatus?.canUndo}
-        canRedo={historyStatus?.canRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
       />
     </div>
   )
