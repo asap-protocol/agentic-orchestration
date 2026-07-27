@@ -207,6 +207,32 @@ CREATE POLICY "Editors can create workflow versions"
     )
   );
 
+DROP POLICY IF EXISTS "Editors can update workflow versions" ON public.workflow_versions;
+CREATE POLICY "Editors can update workflow versions"
+  ON public.workflow_versions FOR UPDATE
+  USING (
+    workflow_id IN (
+      SELECT id FROM public.workflows
+      WHERE workspace_id IN (
+      SELECT workspace_id FROM public.get_user_workspace_roles()
+      WHERE role IN ('owner', 'editor')
+    )
+    )
+  );
+
+DROP POLICY IF EXISTS "Editors can delete workflow versions" ON public.workflow_versions;
+CREATE POLICY "Editors can delete workflow versions"
+  ON public.workflow_versions FOR DELETE
+  USING (
+    workflow_id IN (
+      SELECT id FROM public.workflows
+      WHERE workspace_id IN (
+      SELECT workspace_id FROM public.get_user_workspace_roles()
+      WHERE role IN ('owner', 'editor')
+    )
+    )
+  );
+
 -- Workflow executions policies
 DROP POLICY IF EXISTS "Users can view executions in their workspaces" ON public.workflow_executions;
 CREATE POLICY "Users can view executions in their workspaces"
