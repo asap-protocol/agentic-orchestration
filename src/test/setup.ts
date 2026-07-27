@@ -23,6 +23,14 @@ if (typeof globalThis.IntersectionObserver === "undefined") {
   } as unknown as typeof IntersectionObserver
 }
 
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class MockResizeObserver {
+    observe = () => {}
+    unobserve = () => {}
+    disconnect = () => {}
+  } as unknown as typeof ResizeObserver
+}
+
 // Radix UI (Tabs, etc.) requires PointerEvent APIs that jsdom lacks
 if (typeof Element !== "undefined") {
   if (!Element.prototype.hasPointerCapture) {
