@@ -107,6 +107,17 @@ describe("HistoryManager", () => {
     expect(restored?.nodes).toEqual([makeNode("n1")])
   })
 
+  it("skips duplicate consecutive snapshots", () => {
+    const v0 = makeWorkflow()
+    manager.saveState(v0)
+    manager.saveState(v0)
+    expect(manager.canUndo()).toBe(true)
+
+    const withTwoNodes = makeWorkflow({ nodes: [makeNode("n1"), makeNode("n2")] })
+    expect(manager.undo(withTwoNodes)?.nodes).toEqual([])
+    expect(manager.canUndo()).toBe(false)
+  })
+
   it("notifies subscribers when stacks change", () => {
     const seen: number[] = []
     const unsubscribe = manager.subscribe(() => {

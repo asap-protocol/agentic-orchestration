@@ -426,7 +426,25 @@ describe("BuilderCanvas", () => {
       resolvePatch = resolve
     })
 
-    global.fetch = vi.fn().mockReturnValue(deferredPatch) as unknown as typeof fetch
+    global.fetch = vi
+      .fn()
+      .mockReturnValueOnce(deferredPatch)
+      .mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockWorkflow,
+        clone() {
+          return this
+        },
+        text: async () => "",
+      }) as unknown as typeof fetch
+
+    vi.mocked(mutate).mockImplementation(async (_key, fetcher) => {
+      if (typeof fetcher === "function") {
+        return fetcher()
+      }
+      return undefined
+    })
 
     render(<BuilderCanvas />)
 
@@ -453,10 +471,14 @@ describe("BuilderCanvas", () => {
     })
 
     await waitFor(() => {
-      expect(mutate).toHaveBeenCalledWith("/api/workflows/wf-1")
+      expect(mutate).toHaveBeenCalledWith(
+        "/api/workflows/wf-1",
+        expect.any(Function),
+        { revalidate: true },
+      )
     })
 
-    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(global.fetch).toHaveBeenCalledTimes(2)
     expect(getHistoryManager("wf-1").canUndo()).toBe(false)
     expect(getHistoryManager("wf-1").canRedo()).toBe(true)
   })

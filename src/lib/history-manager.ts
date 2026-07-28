@@ -31,8 +31,14 @@ export class HistoryManager {
   }
 
   saveState(workflow: Workflow) {
+    const snapshot = JSON.parse(JSON.stringify(workflow)) as Workflow
+    const top = this.undoStack[this.undoStack.length - 1]
+    if (top && JSON.stringify(top.workflow) === JSON.stringify(snapshot)) {
+      return
+    }
+
     this.undoStack.push({
-      workflow: JSON.parse(JSON.stringify(workflow)),
+      workflow: snapshot,
       timestamp: Date.now(),
     })
 

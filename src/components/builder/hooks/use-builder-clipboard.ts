@@ -15,14 +15,16 @@ type ClipboardPayload = {
   connections: Connection[]
 }
 
-type SaveToHistory = (snapshot?: Workflow) => void
+type SaveToHistory = () => void
+
+type MutateWorkflow = (id: string) => Promise<void>
 
 export function useBuilderClipboard(options: {
   workflowId: string | null
   selectedNodeIds: string[]
   workflow: Workflow | null | undefined
   saveToHistory: SaveToHistory
-  mutateWorkflow: (id: string) => void
+  mutateWorkflow: MutateWorkflow
   safeFetch: SafeFetch
   toast: ToastFn
 }) {
@@ -66,7 +68,6 @@ export function useBuilderClipboard(options: {
       toast({ title: "Nothing to paste", variant: "destructive" })
       return
     }
-    const previous = workflow
     const response = await safeFetch(`/api/workflows/${workflowId}/paste`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -74,8 +75,8 @@ export function useBuilderClipboard(options: {
     })
     if (response.ok) {
       const result = await response.json()
-      saveToHistory(previous)
-      mutateWorkflow(workflowId)
+      saveToHistory()
+      await mutateWorkflow(workflowId)
       toast({ title: `Pasted ${result.nodeIds?.length ?? 0} node(s)` })
     } else {
       toast({ title: "Nothing to paste", variant: "destructive" })
@@ -85,7 +86,6 @@ export function useBuilderClipboard(options: {
   const duplicateNodeIds = useCallback(
     async (nodeIds: string[], successTitle: string) => {
       if (!nodeIds.length || !workflowId || !workflow) return
-      const previous = workflow
       const copied = await copyNodeIds(nodeIds)
       if (!copied || !clipboardRef.current) return
       const pasteRes = await safeFetch(`/api/workflows/${workflowId}/paste`, {
@@ -97,8 +97,8 @@ export function useBuilderClipboard(options: {
         }),
       })
       if (pasteRes.ok) {
-        saveToHistory(previous)
-        mutateWorkflow(workflowId)
+        saveToHistory()
+        await mutateWorkflow(workflowId)
         toast({ title: successTitle })
       }
     },
