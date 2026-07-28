@@ -13,7 +13,7 @@ export async function PATCH(
   const updates = await request.json()
 
   try {
-    const workflow = await updateWorkflowNode(id, nodeId, updates)
+    const workflow = await updateWorkflowNode(id, nodeId, updates, result.workspace.id)
     const node = workflow.nodes.find((n) => n.id === nodeId)
     if (!node) return NextResponse.json({ error: "Node not found" }, { status: 404 })
     return NextResponse.json(node)
@@ -32,7 +32,7 @@ export async function DELETE(
   const { id, nodeId } = await params
 
   try {
-    await deleteWorkflowNode(id, nodeId)
+    await deleteWorkflowNode(id, nodeId, result.workspace.id)
     return NextResponse.json({ success: true })
   } catch {
     return NextResponse.json({ error: "Node not found" }, { status: 404 })

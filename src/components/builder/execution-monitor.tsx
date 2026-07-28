@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { durationMs } from "@/lib/execution-duration"
 import type { WorkflowExecution, ExecutionLog } from "@/lib/workflow-types"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -24,6 +25,7 @@ interface ExecutionMonitorProps {
   isOpen: boolean
   onClose: () => void
   onNodeHighlight?: (nodeId: string | null) => void
+  onExecutionPath?: (nodeIds: string[]) => void
 }
 
 function JsonViewer({ data }: { data: unknown }) {
@@ -62,15 +64,18 @@ export function ExecutionMonitor({
   isOpen,
   onClose,
   onNodeHighlight,
+  onExecutionPath,
 }: ExecutionMonitorProps) {
   const [input, setInput] = useState("")
   const [execution, setExecution] = useState<WorkflowExecution | null>(null)
   const [isExecuting, setIsExecuting] = useState(false)
+  const [runError, setRunError] = useState<string | null>(null)
 
   const handleRun = async () => {
     if (!input.trim()) return
 
     setIsExecuting(true)
+    setRunError(null)
     try {
       const response = await fetch(`/api/workflows/${workflowId}/execute`, {
         method: "POST",
@@ -79,12 +84,27 @@ export function ExecutionMonitor({
       })
 
       const result = await response.json()
-      setExecution(result)
+      if (!response.ok) {
+        setExecution(null)
+        setRunError(typeof result?.error === "string" ? result.error : "Workflow execution failed")
+        onNodeHighlight?.(null)
+        return
+      }
 
-      if (onNodeHighlight) {
-        onNodeHighlight(null)
+      setExecution(result as WorkflowExecution)
+      const pathNodeIds = Array.isArray(result?.logs)
+        ? (result.logs as ExecutionLog[])
+            .map((log) => log.nodeId)
+            .filter((id: string | undefined): id is string => Boolean(id))
+        : []
+      if (onExecutionPath && pathNodeIds.length > 0) {
+        onExecutionPath(pathNodeIds)
+      } else {
+        onNodeHighlight?.(null)
       }
     } catch (error) {
+      setExecution(null)
+      setRunError(error instanceof Error ? error.message : String(error))
       console.error("Execution error:", error instanceof Error ? error.message : String(error))
     } finally {
       setIsExecuting(false)
@@ -141,6 +161,8 @@ export function ExecutionMonitor({
 
   if (!isOpen) return null
 
+  const elapsedMs = execution ? durationMs(execution.startedAt, execution.completedAt) : null
+
   return (
     <div className="bg-card/95 border-border fixed inset-y-0 right-0 z-50 flex w-96 flex-col border-l backdrop-blur-md">
       {/* Header */}
@@ -181,6 +203,7 @@ export function ExecutionMonitor({
             </>
           )}
         </Button>
+        {runError ? <p className="text-destructive text-sm">{runError}</p> : null}
       </div>
 
       {/* Execution Results */}
@@ -195,9 +218,7 @@ export function ExecutionMonitor({
             <div className="text-muted-foreground flex items-center gap-4 text-xs">
               <div className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
-                {execution.completedAt
-                  ? `${Math.round((execution.completedAt.getTime() - execution.startedAt.getTime()) / 1000)}s`
-                  : "In progress..."}
+                {elapsedMs != null ? `${Math.round(elapsedMs / 1000)}s` : "In progress..."}
               </div>
               <div>{execution.logs.length} logs</div>
             </div>

@@ -1,6 +1,27 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
+import { parseVersionParam } from "@/lib/api/version-param"
 import { withWorkspace } from "@/lib/api/with-workspace"
-import { versionStore } from "@/lib/version-store"
+import { versionStore, type VersionWriteResult } from "@/lib/version-store"
+
+const tagVersionBodySchema = z.object({
+  tag: z.string().min(1, "tag must be a non-empty string"),
+})
+
+function writeResultResponse(result: VersionWriteResult): NextResponse {
+  switch (result) {
+    case "ok":
+      return NextResponse.json({ success: true })
+    case "not_found":
+      return NextResponse.json({ error: "Version not found" }, { status: 404 })
+    case "forbidden":
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    default: {
+      const _exhaustive: never = result
+      return _exhaustive
+    }
+  }
+}
 
 export async function GET(
   request: NextRequest,
@@ -10,14 +31,24 @@ export async function GET(
   if (result.error) return result.error
 
   const { id, version } = await params
-  const versionNumber = Number.parseInt(version)
-  const versionData = versionStore.getVersion(id, versionNumber)
-
-  if (!versionData) {
-    return NextResponse.json({ error: "Version not found" }, { status: 404 })
+  const parsed = parseVersionParam(version)
+  if (!parsed.ok) {
+    return NextResponse.json(
+      { error: `Invalid version number: expected integer, got ${JSON.stringify(version)}` },
+      { status: 400 },
+    )
   }
 
-  return NextResponse.json(versionData)
+  try {
+    const versionData = await versionStore.getVersion(id, parsed.value)
+    if (!versionData) {
+      return NextResponse.json({ error: "Version not found" }, { status: 404 })
+    }
+    return NextResponse.json(versionData)
+  } catch (error) {
+    console.error("Version get error:", error instanceof Error ? error.message : String(error))
+    return NextResponse.json({ error: "Failed to load version" }, { status: 500 })
+  }
 }
 
 export async function DELETE(
@@ -28,14 +59,21 @@ export async function DELETE(
   if (result.error) return result.error
 
   const { id, version } = await params
-  const versionNumber = Number.parseInt(version)
-  const success = versionStore.deleteVersion(id, versionNumber)
-
-  if (!success) {
-    return NextResponse.json({ error: "Version not found" }, { status: 404 })
+  const parsed = parseVersionParam(version)
+  if (!parsed.ok) {
+    return NextResponse.json(
+      { error: `Invalid version number: expected integer, got ${JSON.stringify(version)}` },
+      { status: 400 },
+    )
   }
 
-  return NextResponse.json({ success: true })
+  try {
+    const writeResult = await versionStore.deleteVersion(id, parsed.value)
+    return writeResultResponse(writeResult)
+  } catch (error) {
+    console.error("Version delete error:", error instanceof Error ? error.message : String(error))
+    return NextResponse.json({ error: "Failed to delete version" }, { status: 500 })
+  }
 }
 
 export async function PATCH(
@@ -47,16 +85,24 @@ export async function PATCH(
 
   try {
     const { id, version } = await params
-    const { tag } = await request.json()
-    const versionNumber = Number.parseInt(version)
-    const success = versionStore.tagVersion(id, versionNumber, tag)
-
-    if (!success) {
-      return NextResponse.json({ error: "Version not found" }, { status: 404 })
+    const parsed = parseVersionParam(version)
+    if (!parsed.ok) {
+      return NextResponse.json(
+        { error: `Invalid version number: expected integer, got ${JSON.stringify(version)}` },
+        { status: 400 },
+      )
     }
 
-    return NextResponse.json({ success: true })
+    const body = tagVersionBodySchema.parse(await request.json())
+    const writeResult = await versionStore.tagVersion(id, parsed.value, body.tag)
+    return writeResultResponse(writeResult)
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: error.flatten() },
+        { status: 400 },
+      )
+    }
     console.error("Version tag error:", error instanceof Error ? error.message : String(error))
     return NextResponse.json({ error: "Failed to tag version" }, { status: 500 })
   }

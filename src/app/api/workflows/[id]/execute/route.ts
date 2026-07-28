@@ -12,7 +12,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id } = await params
     const { input } = await request.json()
 
-    const workflow = await getWorkflow(id)
+    const workflow = await getWorkflow(id, result.workspace.id)
 
     if (!workflow) {
       return NextResponse.json({ error: "Workflow not found" }, { status: 404 })

@@ -93,22 +93,24 @@ export async function deleteWorkflow(id: string, workspaceId?: string): Promise<
 export async function addWorkflowNode(
   workflowId: string,
   node: Omit<WorkflowNode, "id">,
+  workspaceId?: string,
 ): Promise<Workflow> {
-  const workflow = await getWorkflow(workflowId)
+  const workflow = await getWorkflow(workflowId, workspaceId)
   if (!workflow) throw new Error("Workflow not found")
 
   const newNode: WorkflowNode = { ...node, id: crypto.randomUUID() }
   const updatedNodes = [...workflow.nodes, newNode]
 
-  return await updateWorkflow(workflowId, { nodes: updatedNodes })
+  return await updateWorkflow(workflowId, { nodes: updatedNodes }, workspaceId)
 }
 
 export async function updateWorkflowNode(
   workflowId: string,
   nodeId: string,
   updates: Partial<WorkflowNode>,
+  workspaceId?: string,
 ): Promise<Workflow> {
-  const workflow = await getWorkflow(workflowId)
+  const workflow = await getWorkflow(workflowId, workspaceId)
   if (!workflow) throw new Error("Workflow not found")
 
   const updatedNodes = workflow.nodes.map((node) => {
@@ -118,11 +120,15 @@ export async function updateWorkflowNode(
     return merged
   })
 
-  return await updateWorkflow(workflowId, { nodes: updatedNodes })
+  return await updateWorkflow(workflowId, { nodes: updatedNodes }, workspaceId)
 }
 
-export async function deleteWorkflowNode(workflowId: string, nodeId: string): Promise<Workflow> {
-  const workflow = await getWorkflow(workflowId)
+export async function deleteWorkflowNode(
+  workflowId: string,
+  nodeId: string,
+  workspaceId?: string,
+): Promise<Workflow> {
+  const workflow = await getWorkflow(workflowId, workspaceId)
   if (!workflow) throw new Error("Workflow not found")
 
   const updatedNodes = workflow.nodes.filter((node) => node.id !== nodeId)
@@ -130,14 +136,19 @@ export async function deleteWorkflowNode(workflowId: string, nodeId: string): Pr
     (conn) => conn.sourceId !== nodeId && conn.targetId !== nodeId,
   )
 
-  return await updateWorkflow(workflowId, { nodes: updatedNodes, connections: updatedConnections })
+  return await updateWorkflow(
+    workflowId,
+    { nodes: updatedNodes, connections: updatedConnections },
+    workspaceId,
+  )
 }
 
 export async function addWorkflowConnection(
   workflowId: string,
   connection: Omit<Connection, "id">,
+  workspaceId?: string,
 ): Promise<Workflow> {
-  const workflow = await getWorkflow(workflowId)
+  const workflow = await getWorkflow(workflowId, workspaceId)
   if (!workflow) throw new Error("Workflow not found")
 
   const exists = workflow.connections.some(
@@ -148,17 +159,18 @@ export async function addWorkflowConnection(
   const newConnection: Connection = { ...connection, id: crypto.randomUUID() }
   const updatedConnections = [...workflow.connections, newConnection]
 
-  return await updateWorkflow(workflowId, { connections: updatedConnections })
+  return await updateWorkflow(workflowId, { connections: updatedConnections }, workspaceId)
 }
 
 export async function deleteWorkflowConnection(
   workflowId: string,
   connectionId: string,
+  workspaceId?: string,
 ): Promise<Workflow> {
-  const workflow = await getWorkflow(workflowId)
+  const workflow = await getWorkflow(workflowId, workspaceId)
   if (!workflow) throw new Error("Workflow not found")
 
   const updatedConnections = workflow.connections.filter((conn) => conn.id !== connectionId)
 
-  return await updateWorkflow(workflowId, { connections: updatedConnections })
+  return await updateWorkflow(workflowId, { connections: updatedConnections }, workspaceId)
 }
