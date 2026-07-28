@@ -79,19 +79,30 @@ export function useBuilderHistory(options: {
   const canUndo = canUndoBit === "1"
   const canRedo = canRedoBit === "1"
 
-  const mutateWorkflow = useCallback((id: string) => {
-    mutate(`/api/workflows/${id}`)
+  const mutateWorkflow = useCallback(async (id: string) => {
+    const fresh = await mutate<Workflow>(
+      `/api/workflows/${id}`,
+      async () => {
+        const response = await fetch(`/api/workflows/${id}`)
+        if (!response.ok) {
+          throw new Error(await response.text())
+        }
+        return (await response.json()) as Workflow
+      },
+      { revalidate: true },
+    )
+    if (fresh) {
+      lastPersistedRef.current = fresh
+      lastSyncedUpdatedAtRef.current = workflowUpdatedAtMs(fresh)
+    }
   }, [])
 
-  const saveToHistory = useCallback(
-    (snapshot?: Workflow) => {
-      const toSave = snapshot ?? workflow
-      if (toSave && workflowId) {
-        getHistoryManager(workflowId).saveState(toSave)
-      }
-    },
-    [workflow, workflowId],
-  )
+  const saveToHistory = useCallback(() => {
+    const toSave = lastPersistedRef.current ?? workflow
+    if (toSave && workflowId) {
+      getHistoryManager(workflowId).saveState(toSave)
+    }
+  }, [workflow, workflowId])
 
   const applyHistoryTransition = useCallback(
     async (direction: "undo" | "redo") => {
@@ -158,7 +169,6 @@ export function useBuilderHistory(options: {
       if (transitionInFlightRef.current) return
       transitionInFlightRef.current = true
       setIsHistoryTransitioning(true)
-      const previous = workflow
       try {
         const response = await safeFetch(`/api/workflows/${workflowId}`, {
           method: "PATCH",
@@ -169,13 +179,13 @@ export function useBuilderHistory(options: {
           }),
         })
         if (!response.ok) return
-        getHistoryManager(workflowId).saveState(previous)
+        saveToHistory()
         lastPersistedRef.current = {
-          ...previous,
+          ...workflow,
           nodes: version.nodes,
           connections: version.connections,
         }
-        mutateWorkflow(workflowId)
+        void mutateWorkflow(workflowId)
         toast({
           title: "Version restored",
           description: `Restored ${version.name}`,
@@ -187,7 +197,7 @@ export function useBuilderHistory(options: {
         setIsHistoryTransitioning(false)
       }
     },
-    [workflowId, workflow, mutateWorkflow, safeFetch, toast],
+    [workflowId, workflow, mutateWorkflow, safeFetch, toast, saveToHistory],
   )
 
   return {
