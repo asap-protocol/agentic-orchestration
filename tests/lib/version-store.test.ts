@@ -107,6 +107,19 @@ describe("versionStore (memory fallback)", () => {
     expect(comparison?.added.nodes.map((n) => n.id)).toEqual(["b"])
     expect(comparison?.removed.nodes).toEqual([])
   })
+
+  it("throws in production when Supabase client is null", async () => {
+    const previousEnv = process.env.NODE_ENV
+    process.env.NODE_ENV = "production"
+    try {
+      const { versionStore } = await import("@/lib/version-store")
+      await expect(versionStore.createVersion(makeWorkflow())).rejects.toThrow(
+        /Database connection is required for workflow versions in production/,
+      )
+    } finally {
+      process.env.NODE_ENV = previousEnv
+    }
+  })
 })
 
 describe("versionStore (Supabase persistence)", () => {

@@ -96,9 +96,18 @@ function compareSnapshots(v1: WorkflowVersion, v2: WorkflowVersion): VersionComp
   return { added, removed, modified: { nodes: modified } }
 }
 
+function requireSupabaseOrMemoryFallback() {
+  // Production must not silently degrade to a process-local Map (serverless amnesia).
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Database connection is required for workflow versions in production (Supabase client is null).",
+    )
+  }
+}
+
 /**
  * Prefers Supabase `workflow_versions` when a server client is available.
- * Fallback: process-local Map — non-prod only (serverless amnesia across instances).
+ * Fallback: process-local Map — tests / local-dev only (throws in production).
  */
 class VersionStore {
   private memoryVersions: Map<string, WorkflowVersion[]> = new Map()
@@ -106,6 +115,7 @@ class VersionStore {
   async createVersion(workflow: Workflow, description?: string): Promise<WorkflowVersion> {
     const supabase = await getSupabaseServerClient()
     if (!supabase) {
+      requireSupabaseOrMemoryFallback()
       return this.createVersionInMemory(workflow, description)
     }
 
@@ -139,6 +149,7 @@ class VersionStore {
   async getVersions(workflowId: string): Promise<WorkflowVersion[]> {
     const supabase = await getSupabaseServerClient()
     if (!supabase) {
+      requireSupabaseOrMemoryFallback()
       return this.getVersionsFromMemory(workflowId)
     }
     return this.getVersionsFromDb(workflowId)
@@ -150,6 +161,7 @@ class VersionStore {
   ): Promise<WorkflowVersion | undefined> {
     const supabase = await getSupabaseServerClient()
     if (!supabase) {
+      requireSupabaseOrMemoryFallback()
       return this.getVersionsFromMemory(workflowId).find((v) => v.version === versionNumber)
     }
 
@@ -178,6 +190,7 @@ class VersionStore {
   async tagVersion(workflowId: string, versionNumber: number, tag: string): Promise<boolean> {
     const supabase = await getSupabaseServerClient()
     if (!supabase) {
+      requireSupabaseOrMemoryFallback()
       return this.tagVersionInMemory(workflowId, versionNumber, tag)
     }
 
@@ -199,6 +212,7 @@ class VersionStore {
   async deleteVersion(workflowId: string, versionNumber: number): Promise<boolean> {
     const supabase = await getSupabaseServerClient()
     if (!supabase) {
+      requireSupabaseOrMemoryFallback()
       return this.deleteVersionInMemory(workflowId, versionNumber)
     }
 
