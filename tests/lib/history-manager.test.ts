@@ -106,6 +106,20 @@ describe("HistoryManager", () => {
     const restored = manager.undo(makeWorkflow({ nodes: [makeNode("current")] }))
     expect(restored?.nodes).toEqual([makeNode("n1")])
   })
+
+  it("notifies subscribers when stacks change", () => {
+    const seen: number[] = []
+    const unsubscribe = manager.subscribe(() => {
+      seen.push(manager.getRevision())
+    })
+    manager.saveState(makeWorkflow())
+    manager.undo(makeWorkflow({ nodes: [makeNode("n1")] }))
+    unsubscribe()
+    const revisionAfterUnsubscribe = manager.getRevision()
+    manager.saveState(makeWorkflow())
+    expect(seen.length).toBe(2)
+    expect(manager.getRevision()).toBeGreaterThan(revisionAfterUnsubscribe)
+  })
 })
 
 describe("getHistoryManager", () => {

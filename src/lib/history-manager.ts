@@ -9,6 +9,26 @@ export class HistoryManager {
   private undoStack: HistoryState[] = []
   private redoStack: HistoryState[] = []
   private maxHistorySize = 50
+  private revision = 0
+  private readonly listeners = new Set<() => void>()
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
+  }
+
+  getRevision(): number {
+    return this.revision
+  }
+
+  private notify() {
+    this.revision += 1
+    for (const listener of this.listeners) {
+      listener()
+    }
+  }
 
   saveState(workflow: Workflow) {
     this.undoStack.push({
@@ -21,6 +41,7 @@ export class HistoryManager {
     }
 
     this.redoStack = []
+    this.notify()
   }
 
   canUndo(): boolean {
@@ -40,6 +61,7 @@ export class HistoryManager {
     })
 
     const previousState = this.undoStack.pop()!
+    this.notify()
     return previousState.workflow
   }
 
@@ -52,12 +74,14 @@ export class HistoryManager {
     })
 
     const nextState = this.redoStack.pop()!
+    this.notify()
     return nextState.workflow
   }
 
   clear() {
     this.undoStack = []
     this.redoStack = []
+    this.notify()
   }
 }
 
