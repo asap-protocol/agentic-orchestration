@@ -109,16 +109,11 @@ describe("versionStore (memory fallback)", () => {
   })
 
   it("throws in production when Supabase client is null", async () => {
-    const previousEnv = process.env.NODE_ENV
-    process.env.NODE_ENV = "production"
-    try {
-      const { versionStore } = await import("@/lib/version-store")
-      await expect(versionStore.createVersion(makeWorkflow())).rejects.toThrow(
-        /Database connection is required for workflow versions in production/,
-      )
-    } finally {
-      process.env.NODE_ENV = previousEnv
-    }
+    vi.stubEnv("NODE_ENV", "production")
+    const { versionStore } = await import("@/lib/version-store")
+    await expect(versionStore.createVersion(makeWorkflow())).rejects.toThrow(
+      /Database connection is required for workflow versions in production/,
+    )
   })
 })
 
