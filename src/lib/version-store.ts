@@ -13,6 +13,13 @@ interface WorkflowVersionRow {
   created_at: string
 }
 
+/** Result of tag/delete when the caller must map HTTP status. */
+export type VersionWriteResult = "ok" | "not_found" | "forbidden"
+
+const UNIQUE_VIOLATION = "23505"
+const NO_ROWS = "PGRST116"
+const CREATE_VERSION_MAX_ATTEMPTS = 3
+
 function serializeTags(tags?: string[]): string | null {
   if (!tags || tags.length === 0) return null
   return JSON.stringify(tags)
@@ -105,6 +112,10 @@ function requireSupabaseOrMemoryFallback() {
   }
 }
 
+function isNoRowError(error: { code?: string } | null): boolean {
+  return error?.code === NO_ROWS
+}
+
 /**
  * Prefers Supabase `workflow_versions` when a server client is available.
  * Fallback: process-local Map — tests / local-dev only (throws in production).
@@ -119,31 +130,43 @@ class VersionStore {
       return this.createVersionInMemory(workflow, description)
     }
 
-    const existing = await this.getVersionsFromDb(workflow.id)
-    const versionNumber = nextVersionNumber(existing, workflow.version)
-    const id = crypto.randomUUID()
+    let lastErrorMessage = "unknown error"
+    for (let attempt = 0; attempt < CREATE_VERSION_MAX_ATTEMPTS; attempt++) {
+      const existing = await this.getVersionsFromDb(workflow.id)
+      const versionNumber = nextVersionNumber(existing, workflow.version)
+      const id = crypto.randomUUID()
 
-    const { data, error } = await supabase
-      .from("workflow_versions")
-      .insert({
-        id,
-        workflow_id: workflow.id,
-        version: versionNumber,
-        nodes: cloneGraph(workflow.nodes),
-        connections: cloneGraph(workflow.connections),
-        tag: null,
-        description: description ?? null,
-      })
-      .select()
-      .single()
+      const { data, error } = await supabase
+        .from("workflow_versions")
+        .insert({
+          id,
+          workflow_id: workflow.id,
+          version: versionNumber,
+          nodes: cloneGraph(workflow.nodes),
+          connections: cloneGraph(workflow.connections),
+          tag: null,
+          description: description ?? null,
+        })
+        .select()
+        .single()
 
-    if (error || !data) {
+      if (!error && data) {
+        return mapVersionRow(data as WorkflowVersionRow)
+      }
+
+      lastErrorMessage = error?.message ?? "no row returned"
+      if (error?.code === UNIQUE_VIOLATION) {
+        continue
+      }
+
       throw new Error(
-        `Failed to create workflow version for workflowId=${workflow.id}: ${error?.message ?? "no row returned"}`,
+        `Failed to create workflow version for workflowId=${workflow.id}: ${lastErrorMessage}`,
       )
     }
 
-    return mapVersionRow(data as WorkflowVersionRow)
+    throw new Error(
+      `Failed to create workflow version for workflowId=${workflow.id} after ${CREATE_VERSION_MAX_ATTEMPTS} attempts: ${lastErrorMessage}`,
+    )
   }
 
   async getVersions(workflowId: string): Promise<WorkflowVersion[]> {
@@ -172,7 +195,13 @@ class VersionStore {
       .eq("version", versionNumber)
       .single()
 
-    if (error || !data) return undefined
+    if (error) {
+      if (isNoRowError(error)) return undefined
+      throw new Error(
+        `Failed to load workflow version workflowId=${workflowId} version=${versionNumber}: ${error.message}`,
+      )
+    }
+    if (!data) return undefined
     return mapVersionRow(data as WorkflowVersionRow)
   }
 
@@ -187,45 +216,66 @@ class VersionStore {
     return compareSnapshots(v1, v2)
   }
 
-  async tagVersion(workflowId: string, versionNumber: number, tag: string): Promise<boolean> {
+  async tagVersion(
+    workflowId: string,
+    versionNumber: number,
+    tag: string,
+  ): Promise<VersionWriteResult> {
     const supabase = await getSupabaseServerClient()
     if (!supabase) {
       requireSupabaseOrMemoryFallback()
-      return this.tagVersionInMemory(workflowId, versionNumber, tag)
+      return this.tagVersionInMemory(workflowId, versionNumber, tag) ? "ok" : "not_found"
     }
 
     const existing = await this.getVersion(workflowId, versionNumber)
-    if (!existing) return false
+    if (!existing) return "not_found"
 
     const tags = existing.tags ?? []
     if (!tags.includes(tag)) tags.push(tag)
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("workflow_versions")
       .update({ tag: serializeTags(tags) })
       .eq("workflow_id", workflowId)
       .eq("version", versionNumber)
+      .select("id")
+      .maybeSingle()
 
-    return !error
+    if (error) {
+      throw new Error(
+        `Failed to tag workflow version workflowId=${workflowId} version=${versionNumber}: ${error.message}`,
+      )
+    }
+    // Row visible via SELECT but UPDATE affected 0 rows → typically RLS denial.
+    if (!data) return "forbidden"
+    return "ok"
   }
 
-  async deleteVersion(workflowId: string, versionNumber: number): Promise<boolean> {
+  async deleteVersion(workflowId: string, versionNumber: number): Promise<VersionWriteResult> {
     const supabase = await getSupabaseServerClient()
     if (!supabase) {
       requireSupabaseOrMemoryFallback()
-      return this.deleteVersionInMemory(workflowId, versionNumber)
+      return this.deleteVersionInMemory(workflowId, versionNumber) ? "ok" : "not_found"
     }
 
     const existing = await this.getVersion(workflowId, versionNumber)
-    if (!existing) return false
+    if (!existing) return "not_found"
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("workflow_versions")
       .delete()
       .eq("workflow_id", workflowId)
       .eq("version", versionNumber)
+      .select("id")
+      .maybeSingle()
 
-    return !error
+    if (error) {
+      throw new Error(
+        `Failed to delete workflow version workflowId=${workflowId} version=${versionNumber}: ${error.message}`,
+      )
+    }
+    if (!data) return "forbidden"
+    return "ok"
   }
 
   private async getVersionsFromDb(workflowId: string): Promise<WorkflowVersion[]> {

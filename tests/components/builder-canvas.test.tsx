@@ -64,7 +64,6 @@ vi.mock("next/link", () => ({
 }))
 
 const mockScreenToFlowPosition = vi.fn(({ x, y }: { x: number; y: number }) => ({ x, y }))
-const mockGetViewport = vi.fn(() => ({ x: 0, y: 0, zoom: 1 }))
 
 vi.mock("@xyflow/react", async () => {
   const actual = await vi.importActual("@xyflow/react")
@@ -73,11 +72,11 @@ vi.mock("@xyflow/react", async () => {
     ReactFlowProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
     useReactFlow: () => ({
       screenToFlowPosition: mockScreenToFlowPosition,
-      getViewport: mockGetViewport,
       zoomIn: vi.fn(),
       zoomOut: vi.fn(),
       fitView: vi.fn(),
     }),
+    useViewport: () => ({ x: 0, y: 0, zoom: 1 }),
     useNodesState: (initial: unknown[]) => [initial, mockSetNodes, vi.fn()],
     useEdgesState: (initial: unknown[]) => [initial, mockSetEdges, vi.fn()],
     ReactFlow: () => <div data-testid="react-flow-mock" />,
@@ -411,6 +410,55 @@ describe("BuilderCanvas", () => {
     expect(mutate).not.toHaveBeenCalledWith("/api/workflows/wf-1")
     expect(getHistoryManager("wf-1").canRedo()).toBe(true)
     expect(getHistoryManager("wf-1").canUndo()).toBe(false)
+  })
+
+  it("ignores overlapping undo while a PATCH is in flight", async () => {
+    const user = userEvent.setup()
+    const emptyGraph = {
+      ...mockWorkflow,
+      nodes: [] as WorkflowNode[],
+      connections: [],
+    }
+    getHistoryManager("wf-1").saveState(emptyGraph)
+
+    let resolvePatch: ((value: unknown) => void) | undefined
+    const deferredPatch = new Promise((resolve) => {
+      resolvePatch = resolve
+    })
+
+    global.fetch = vi.fn().mockReturnValue(deferredPatch) as unknown as typeof fetch
+
+    render(<BuilderCanvas />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled()
+    })
+
+    await user.click(screen.getByRole("button", { name: "Undo" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled()
+    })
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+
+    resolvePatch?.({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+      clone() {
+        return this
+      },
+      text: async () => "",
+    })
+
+    await waitFor(() => {
+      expect(mutate).toHaveBeenCalledWith("/api/workflows/wf-1")
+    })
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(getHistoryManager("wf-1").canUndo()).toBe(false)
+    expect(getHistoryManager("wf-1").canRedo()).toBe(true)
   })
 
   it("restores a version by PATCHing that version's nodes/connections", async () => {

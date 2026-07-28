@@ -8,14 +8,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (result.error) return result.error
 
   const { id: workflowId } = await params
-  const workflow = await getWorkflow(workflowId)
+  const workflow = await getWorkflow(workflowId, result.workspace.id)
 
   if (!workflow) {
     return NextResponse.json({ error: "Workflow not found" }, { status: 404 })
   }
 
   const layoutedNodes = autoLayout.applyLayout(workflow.nodes, workflow.connections)
-  const updated = await updateWorkflow(workflowId, { nodes: layoutedNodes })
+  const updated = await updateWorkflow(workflowId, { nodes: layoutedNodes }, result.workspace.id)
 
   return NextResponse.json(updated)
 }

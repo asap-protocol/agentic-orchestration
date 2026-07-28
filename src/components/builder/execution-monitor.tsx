@@ -25,6 +25,7 @@ interface ExecutionMonitorProps {
   isOpen: boolean
   onClose: () => void
   onNodeHighlight?: (nodeId: string | null) => void
+  onExecutionPath?: (nodeIds: string[]) => void
 }
 
 function JsonViewer({ data }: { data: unknown }) {
@@ -63,15 +64,18 @@ export function ExecutionMonitor({
   isOpen,
   onClose,
   onNodeHighlight,
+  onExecutionPath,
 }: ExecutionMonitorProps) {
   const [input, setInput] = useState("")
   const [execution, setExecution] = useState<WorkflowExecution | null>(null)
   const [isExecuting, setIsExecuting] = useState(false)
+  const [runError, setRunError] = useState<string | null>(null)
 
   const handleRun = async () => {
     if (!input.trim()) return
 
     setIsExecuting(true)
+    setRunError(null)
     try {
       const response = await fetch(`/api/workflows/${workflowId}/execute`, {
         method: "POST",
@@ -80,12 +84,27 @@ export function ExecutionMonitor({
       })
 
       const result = await response.json()
-      setExecution(result)
+      if (!response.ok) {
+        setExecution(null)
+        setRunError(typeof result?.error === "string" ? result.error : "Workflow execution failed")
+        onNodeHighlight?.(null)
+        return
+      }
 
-      if (onNodeHighlight) {
-        onNodeHighlight(null)
+      setExecution(result as WorkflowExecution)
+      const pathNodeIds = Array.isArray(result?.logs)
+        ? (result.logs as ExecutionLog[])
+            .map((log) => log.nodeId)
+            .filter((id: string | undefined): id is string => Boolean(id))
+        : []
+      if (onExecutionPath && pathNodeIds.length > 0) {
+        onExecutionPath(pathNodeIds)
+      } else {
+        onNodeHighlight?.(null)
       }
     } catch (error) {
+      setExecution(null)
+      setRunError(error instanceof Error ? error.message : String(error))
       console.error("Execution error:", error instanceof Error ? error.message : String(error))
     } finally {
       setIsExecuting(false)
@@ -184,6 +203,7 @@ export function ExecutionMonitor({
             </>
           )}
         </Button>
+        {runError ? <p className="text-destructive text-sm">{runError}</p> : null}
       </div>
 
       {/* Execution Results */}

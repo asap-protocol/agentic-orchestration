@@ -13,6 +13,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (result.error) return result.error
 
   const { id } = await params
+  const workflow = await getWorkflow(id, result.workspace.id)
+  if (!workflow) {
+    return NextResponse.json({ error: "Workflow not found" }, { status: 404 })
+  }
+
   const versions = await versionStore.getVersions(id)
   return NextResponse.json(versions)
 }
@@ -24,7 +29,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   try {
     const { id } = await params
     const body = createVersionBodySchema.parse(await request.json().catch(() => ({})))
-    const workflow = await getWorkflow(id)
+    const workflow = await getWorkflow(id, result.workspace.id)
 
     if (!workflow) {
       return NextResponse.json({ error: "Workflow not found" }, { status: 404 })

@@ -59,6 +59,25 @@ export function connectionIdsTouchingNode(connections: Connection[], nodeId: str
     .map((c) => c.id)
 }
 
+/**
+ * Connection ids along an ordered node visit path (consecutive pairs only).
+ *
+ * @example
+ * connectionIdsAlongNodePath(connections, ["n1", "n2", "n3"]) // ["e1", "e2"]
+ */
+export function connectionIdsAlongNodePath(connections: Connection[], nodeIds: string[]): string[] {
+  if (nodeIds.length < 2) return []
+  const ids: string[] = []
+  for (let i = 0; i < nodeIds.length - 1; i++) {
+    const sourceId = nodeIds[i]
+    const targetId = nodeIds[i + 1]
+    const match = (connections || []).find(
+      (c) => c.sourceId === sourceId && c.targetId === targetId,
+    )
+    if (match) ids.push(match.id)
+  }
+  return ids
+}
 export function workflowConnectionsToEdges(
   connections: Connection[],
   options: WorkflowConnectionsToEdgesOptions = {},

@@ -17,6 +17,10 @@ describe("toValidDate", () => {
     expect(toValidDate("not-a-date")).toBeNull()
   })
 
+  it("returns null for impossible calendar dates", () => {
+    expect(toValidDate("2026-02-30T00:00:00.000Z")).toBeNull()
+  })
+
   it("returns null for Invalid Date instances", () => {
     expect(toValidDate(new Date("invalid"))).toBeNull()
   })
@@ -43,5 +47,13 @@ describe("durationMs", () => {
     expect(durationMs("bad", "2026-01-01T00:00:00.000Z")).toBeNull()
     expect(durationMs("2026-01-01T00:00:00.000Z", "bad")).toBeNull()
     expect(durationMs(undefined, "2026-01-01T00:00:00.000Z")).toBeNull()
+  })
+
+  it("returns null for negative spans", () => {
+    expect(durationMs("2026-01-01T00:00:05.000Z", "2026-01-01T00:00:00.000Z")).toBeNull()
+  })
+
+  it("returns null for impossible calendar dates that JS would roll over", () => {
+    expect(durationMs("2026-02-30T00:00:00.000Z", "2026-03-01T00:00:00.000Z")).toBeNull()
   })
 })

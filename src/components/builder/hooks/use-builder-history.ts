@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useSyncExternalStore } from "react"
+import { useCallback, useRef, useState, useSyncExternalStore } from "react"
 import { mutate } from "swr"
 import { getHistoryManager } from "@/lib/history-manager"
 import type { Workflow, WorkflowVersion } from "@/lib/workflow-types"
@@ -22,6 +22,13 @@ function getHistoryFlagsSnapshot(workflowId: string | null): string {
   if (!workflowId) return "0|0|0"
   const manager = getHistoryManager(workflowId)
   return `${manager.getRevision()}|${manager.canUndo() ? 1 : 0}|${manager.canRedo() ? 1 : 0}`
+}
+
+function workflowUpdatedAtMs(workflow: Workflow): number {
+  const value = workflow.updatedAt
+  if (value instanceof Date) return value.getTime()
+  const parsed = new Date(value as unknown as string).getTime()
+  return Number.isNaN(parsed) ? 0 : parsed
 }
 
 function rollbackHistoryTransition(
@@ -50,6 +57,18 @@ export function useBuilderHistory(options: {
   toast: ToastFn
 }) {
   const { workflowId, workflow, safeFetch, toast } = options
+  const transitionInFlightRef = useRef(false)
+  const [isHistoryTransitioning, setIsHistoryTransitioning] = useState(false)
+  const lastPersistedRef = useRef<Workflow | null>(null)
+  const lastSyncedUpdatedAtRef = useRef<number | null>(null)
+
+  if (workflow) {
+    const updatedAtMs = workflowUpdatedAtMs(workflow)
+    if (lastSyncedUpdatedAtRef.current !== updatedAtMs) {
+      lastSyncedUpdatedAtRef.current = updatedAtMs
+      lastPersistedRef.current = workflow
+    }
+  }
 
   const flagsSnapshot = useSyncExternalStore(
     (onStoreChange) => subscribeHistory(workflowId, onStoreChange),
@@ -64,30 +83,46 @@ export function useBuilderHistory(options: {
     mutate(`/api/workflows/${id}`)
   }, [])
 
-  const saveToHistory = useCallback(() => {
-    if (workflow && workflowId) {
-      getHistoryManager(workflowId).saveState(workflow)
-    }
-  }, [workflow, workflowId])
+  const saveToHistory = useCallback(
+    (snapshot?: Workflow) => {
+      const toSave = snapshot ?? workflow
+      if (toSave && workflowId) {
+        getHistoryManager(workflowId).saveState(toSave)
+      }
+    },
+    [workflow, workflowId],
+  )
 
   const applyHistoryTransition = useCallback(
     async (direction: "undo" | "redo") => {
       if (!workflowId || !workflow) return
+      // Serialize: overlapping ⌘Z must not push duplicate redo entries or race PATCHes.
+      if (transitionInFlightRef.current) return
+      transitionInFlightRef.current = true
+      setIsHistoryTransitioning(true)
+
       const historyManager = getHistoryManager(workflowId)
+      const current = lastPersistedRef.current ?? workflow
       let snapshot: Workflow | null
       switch (direction) {
         case "undo":
-          snapshot = historyManager.undo(workflow)
+          snapshot = historyManager.undo(current)
           break
         case "redo":
-          snapshot = historyManager.redo(workflow)
+          snapshot = historyManager.redo(current)
           break
         default: {
           const _exhaustive: never = direction
+          transitionInFlightRef.current = false
+          setIsHistoryTransitioning(false)
           return _exhaustive
         }
       }
-      if (!snapshot) return
+      if (!snapshot) {
+        transitionInFlightRef.current = false
+        setIsHistoryTransitioning(false)
+        return
+      }
 
       try {
         const response = await safeFetch(`/api/workflows/${workflowId}`, {
@@ -102,9 +137,13 @@ export function useBuilderHistory(options: {
           rollbackHistoryTransition(historyManager, direction, snapshot)
           return
         }
+        lastPersistedRef.current = snapshot
         mutateWorkflow(workflowId)
       } catch {
         rollbackHistoryTransition(historyManager, direction, snapshot)
+      } finally {
+        transitionInFlightRef.current = false
+        setIsHistoryTransitioning(false)
       }
     },
     [workflowId, workflow, mutateWorkflow, safeFetch],
@@ -116,6 +155,9 @@ export function useBuilderHistory(options: {
   const handleRestoreVersion = useCallback(
     async (version: WorkflowVersion) => {
       if (!workflowId || !workflow) return
+      if (transitionInFlightRef.current) return
+      transitionInFlightRef.current = true
+      setIsHistoryTransitioning(true)
       const previous = workflow
       try {
         const response = await safeFetch(`/api/workflows/${workflowId}`, {
@@ -128,6 +170,11 @@ export function useBuilderHistory(options: {
         })
         if (!response.ok) return
         getHistoryManager(workflowId).saveState(previous)
+        lastPersistedRef.current = {
+          ...previous,
+          nodes: version.nodes,
+          connections: version.connections,
+        }
         mutateWorkflow(workflowId)
         toast({
           title: "Version restored",
@@ -135,6 +182,9 @@ export function useBuilderHistory(options: {
         })
       } catch {
         // Leave stacks untouched when network fails before a successful persist.
+      } finally {
+        transitionInFlightRef.current = false
+        setIsHistoryTransitioning(false)
       }
     },
     [workflowId, workflow, mutateWorkflow, safeFetch, toast],
@@ -143,6 +193,7 @@ export function useBuilderHistory(options: {
   return {
     canUndo,
     canRedo,
+    isHistoryTransitioning,
     saveToHistory,
     mutateWorkflow,
     handleUndo,

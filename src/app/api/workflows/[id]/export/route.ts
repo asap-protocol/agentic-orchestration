@@ -7,7 +7,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   if (result.error) return result.error
 
   const { id: workflowId } = await params
-  const workflow = await getWorkflow(workflowId)
+  const workflow = await getWorkflow(workflowId, result.workspace.id)
 
   if (!workflow) {
     return NextResponse.json({ error: "Workflow not found" }, { status: 404 })

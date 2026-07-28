@@ -8,6 +8,7 @@ import {
   ReactFlowProvider,
   Background,
   useReactFlow,
+  useViewport,
   useNodesState,
   useEdgesState,
   type Node,
@@ -63,7 +64,8 @@ const fetcher = async (url: string) => {
 
 function BuilderCanvasInner() {
   const { toast } = useToast()
-  const { screenToFlowPosition, getViewport, zoomIn, zoomOut, fitView } = useReactFlow()
+  const { screenToFlowPosition, zoomIn, zoomOut, fitView } = useReactFlow()
+  const viewport = useViewport()
 
   const safeFetch = useCallback(
     async (url: string, options?: RequestInit) => {
@@ -147,6 +149,7 @@ function BuilderCanvasInner() {
   const {
     canUndo,
     canRedo,
+    isHistoryTransitioning,
     saveToHistory,
     mutateWorkflow,
     handleUndo,
@@ -159,6 +162,7 @@ function BuilderCanvasInner() {
     highlightedNodeId,
     highlightedEdgeIds,
     handleNodeHighlight,
+    handleExecutionPath,
     handleCloseExecutionMonitor,
     handleToggleExecutionMonitor,
   } = useBuilderExecutionHighlight(workflow?.connections)
@@ -202,13 +206,15 @@ function BuilderCanvasInner() {
     onEdgesChange,
   })
 
-  const selectedNodeId = nodes.find((n) => n.selected)?.id ?? null
+  const selectedNodeIds = nodes.filter((n) => n.selected).map((n) => n.id)
+  const selectedNodeId = selectedNodeIds[0] ?? null
   const selectedNode = workflow?.nodes?.find((n) => n.id === selectedNodeId)
 
   const { handleCopy, handlePaste, handleDuplicate, handleDuplicateById, handleCopyById } =
     useBuilderClipboard({
       workflowId,
-      selectedNodeId,
+      selectedNodeIds,
+      workflow,
       saveToHistory,
       mutateWorkflow,
       safeFetch,
@@ -357,9 +363,9 @@ function BuilderCanvasInner() {
       } else if ((e.ctrlKey || e.metaKey) && e.key === "a") {
         e.preventDefault()
         handleSelectAll()
-      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedNodeId) {
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selectedNodeIds.length > 0) {
         e.preventDefault()
-        void handleNodeDelete(selectedNodeId)
+        void handleNodeDelete(selectedNodeIds)
       } else if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault()
         void handleSaveVersion()
@@ -392,7 +398,7 @@ function BuilderCanvasInner() {
     handleZoomOut,
     handleResetView,
     handleAutoLayout,
-    selectedNodeId,
+    selectedNodeIds,
   ])
 
   if (isUnauthorized) {
@@ -444,8 +450,6 @@ function BuilderCanvasInner() {
     )
   }
 
-  const viewport = getViewport()
-
   return (
     <div className="bg-background flex h-full min-h-0 overflow-hidden">
       <NodeSidebar
@@ -485,7 +489,7 @@ function BuilderCanvasInner() {
                 size="icon"
                 className="hover:bg-accent h-8 w-8 rounded-lg"
                 onClick={handleUndo}
-                disabled={!canUndo}
+                disabled={!canUndo || isHistoryTransitioning}
                 aria-label="Undo"
                 title="Undo"
               >
@@ -496,7 +500,7 @@ function BuilderCanvasInner() {
                 size="icon"
                 className="hover:bg-accent h-8 w-8 rounded-lg"
                 onClick={handleRedo}
-                disabled={!canRedo}
+                disabled={!canRedo || isHistoryTransitioning}
                 aria-label="Redo"
                 title="Redo"
               >
@@ -730,6 +734,7 @@ function BuilderCanvasInner() {
         isOpen={showExecutionMonitor}
         onClose={handleCloseExecutionMonitor}
         onNodeHighlight={handleNodeHighlight}
+        onExecutionPath={handleExecutionPath}
       />
 
       <BuilderCommandPalette

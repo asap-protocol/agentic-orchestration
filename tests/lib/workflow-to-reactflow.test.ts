@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import {
+  connectionIdsAlongNodePath,
   connectionIdsTouchingNode,
   workflowConnectionsToEdges,
 } from "@/lib/builder/workflow-to-reactflow"
@@ -28,6 +29,16 @@ describe("connectionIdsTouchingNode", () => {
 
   it("returns empty array for empty connections", () => {
     expect(connectionIdsTouchingNode([], "n1")).toEqual([])
+  })
+})
+
+describe("connectionIdsAlongNodePath", () => {
+  it("returns only consecutive path edges", () => {
+    expect(connectionIdsAlongNodePath(connections, ["n1", "n2", "n3"])).toEqual(["e1", "e2"])
+  })
+
+  it("skips missing hops without inventing adjacency", () => {
+    expect(connectionIdsAlongNodePath(connections, ["n1", "n3"])).toEqual([])
   })
 })
 

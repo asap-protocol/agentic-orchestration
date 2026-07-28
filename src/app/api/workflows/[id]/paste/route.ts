@@ -23,7 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ error: "Nothing to paste" }, { status: 400 })
   }
 
-  const workflow = await getWorkflow(workflowId)
+  const workflow = await getWorkflow(workflowId, result.workspace.id)
   if (!workflow) {
     return NextResponse.json({ error: "Workflow not found" }, { status: 404 })
   }
@@ -59,10 +59,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ...(pastedConnections as typeof workflow.connections),
   ]
 
-  const updated = await updateWorkflow(workflowId, {
-    nodes: updatedNodes,
-    connections: updatedConnections,
-  })
+  const updated = await updateWorkflow(
+    workflowId,
+    {
+      nodes: updatedNodes,
+      connections: updatedConnections,
+    },
+    result.workspace.id,
+  )
 
   const newNodeIds = pastedNodes.map((n) => n.id)
   return NextResponse.json({ success: true, nodeIds: newNodeIds, workflow: updated })

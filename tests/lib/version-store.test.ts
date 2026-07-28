@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import type { Workflow, WorkflowNode } from "@/lib/workflow-types"
 
 const { mockFrom, mockGetSupabase } = vi.hoisted(() => ({
@@ -34,7 +34,7 @@ function makeNode(id: string): WorkflowNode {
 }
 
 /** Chainable thenable mock for Supabase query builders */
-function createMockChain<T>(result: { data: T; error: Error | null }) {
+function createMockChain<T>(result: { data: T; error: { message: string; code?: string } | null }) {
   const thenable = {
     then: (resolve: (v: typeof result) => void) => resolve(result),
     catch: () => thenable,
@@ -43,6 +43,7 @@ function createMockChain<T>(result: { data: T; error: Error | null }) {
     eq: () => thenable,
     order: () => thenable,
     single: () => thenable,
+    maybeSingle: () => thenable,
     insert: () => thenable,
     update: () => thenable,
     delete: () => thenable,
@@ -55,6 +56,10 @@ describe("versionStore (memory fallback)", () => {
     vi.resetModules()
     mockGetSupabase.mockResolvedValue(null)
     mockFrom.mockReset()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it("creates and lists versions in-memory when Supabase is unavailable", async () => {
@@ -84,14 +89,14 @@ describe("versionStore (memory fallback)", () => {
   it("deleteVersion removes a version from memory", async () => {
     const { versionStore } = await import("@/lib/version-store")
     const created = await versionStore.createVersion(makeWorkflow())
-    expect(await versionStore.deleteVersion("wf-1", created.version)).toBe(true)
+    expect(await versionStore.deleteVersion("wf-1", created.version)).toBe("ok")
     expect(await versionStore.getVersions("wf-1")).toHaveLength(0)
   })
 
   it("tagVersion appends a tag in memory", async () => {
     const { versionStore } = await import("@/lib/version-store")
     const created = await versionStore.createVersion(makeWorkflow())
-    expect(await versionStore.tagVersion("wf-1", created.version, "stable")).toBe(true)
+    expect(await versionStore.tagVersion("wf-1", created.version, "stable")).toBe("ok")
     const loaded = await versionStore.getVersion("wf-1", created.version)
     expect(loaded?.tags).toContain("stable")
   })
@@ -125,6 +130,10 @@ describe("versionStore (Supabase persistence)", () => {
     mockGetSupabase.mockResolvedValue({ from: mockFrom })
   })
 
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it("inserts into workflow_versions when Supabase is available", async () => {
     const row = {
       id: "ver-1",
@@ -150,6 +159,35 @@ describe("versionStore (Supabase persistence)", () => {
     expect(created.id).toBe("ver-1")
     expect(created.nodes).toEqual([makeNode("n1")])
     expect(created.description).toBe("Manual save")
+  })
+
+  it("retries createVersion on unique version conflicts", async () => {
+    const row = {
+      id: "ver-2",
+      workflow_id: "wf-1",
+      version: 2,
+      nodes: [],
+      connections: [],
+      tag: null,
+      description: null,
+      created_at: "2026-01-01T00:00:00.000Z",
+    }
+    mockFrom
+      .mockReturnValueOnce(createMockChain({ data: [], error: null }))
+      .mockReturnValueOnce(
+        createMockChain({ data: null, error: { message: "duplicate", code: "23505" } }),
+      )
+      .mockReturnValueOnce(
+        createMockChain({
+          data: [{ ...row, version: 1, id: "ver-1" }],
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(createMockChain({ data: row, error: null }))
+
+    const { versionStore } = await import("@/lib/version-store")
+    const created = await versionStore.createVersion(makeWorkflow())
+    expect(created.version).toBe(2)
   })
 
   it("lists versions from workflow_versions ordered by version desc", async () => {
@@ -184,5 +222,59 @@ describe("versionStore (Supabase persistence)", () => {
     expect(listed.map((v) => v.version)).toEqual([2, 1])
     expect(listed[0].tags).toEqual(["prod"])
     expect(listed[0].name).toBe("v2")
+  })
+
+  it("getVersion returns undefined only for true no-row errors", async () => {
+    mockFrom.mockReturnValueOnce(
+      createMockChain({ data: null, error: { message: "no rows", code: "PGRST116" } }),
+    )
+    const { versionStore } = await import("@/lib/version-store")
+    await expect(versionStore.getVersion("wf-1", 9)).resolves.toBeUndefined()
+  })
+
+  it("getVersion throws on unexpected database errors", async () => {
+    mockFrom.mockReturnValueOnce(
+      createMockChain({ data: null, error: { message: "connection reset", code: "57P01" } }),
+    )
+    const { versionStore } = await import("@/lib/version-store")
+    await expect(versionStore.getVersion("wf-1", 1)).rejects.toThrow(/connection reset/)
+  })
+
+  it("tagVersion returns forbidden when update affects zero rows", async () => {
+    const existing = {
+      id: "ver-1",
+      workflow_id: "wf-1",
+      version: 1,
+      nodes: [],
+      connections: [],
+      tag: null,
+      description: null,
+      created_at: "2026-01-01T00:00:00.000Z",
+    }
+    mockFrom
+      .mockReturnValueOnce(createMockChain({ data: existing, error: null }))
+      .mockReturnValueOnce(createMockChain({ data: null, error: null }))
+
+    const { versionStore } = await import("@/lib/version-store")
+    await expect(versionStore.tagVersion("wf-1", 1, "stable")).resolves.toBe("forbidden")
+  })
+
+  it("deleteVersion returns ok when a row is deleted", async () => {
+    const existing = {
+      id: "ver-1",
+      workflow_id: "wf-1",
+      version: 1,
+      nodes: [],
+      connections: [],
+      tag: null,
+      description: null,
+      created_at: "2026-01-01T00:00:00.000Z",
+    }
+    mockFrom
+      .mockReturnValueOnce(createMockChain({ data: existing, error: null }))
+      .mockReturnValueOnce(createMockChain({ data: { id: "ver-1" }, error: null }))
+
+    const { versionStore } = await import("@/lib/version-store")
+    await expect(versionStore.deleteVersion("wf-1", 1)).resolves.toBe("ok")
   })
 })

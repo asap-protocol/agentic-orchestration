@@ -10,7 +10,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const nodeData = await request.json()
 
   try {
-    const workflow = await addWorkflowNode(id, nodeData)
+    const workflow = await addWorkflowNode(id, nodeData, result.workspace.id)
     const newNode = workflow.nodes[workflow.nodes.length - 1]
     return NextResponse.json(newNode)
   } catch (err: unknown) {
