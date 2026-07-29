@@ -9,6 +9,7 @@ import {
   addWorkflowNode,
   updateWorkflowNode,
   deleteWorkflowNode,
+  deleteWorkflowNodes,
   addWorkflowConnection,
   deleteWorkflowConnection,
 } from "@/lib/db/workflows"
@@ -291,6 +292,36 @@ describe("lib/db/workflows", () => {
       const result = await deleteWorkflowNode(WORKFLOW_ID, nodeId)
 
       expect(result.nodes).toHaveLength(1)
+      expect(result.connections).toHaveLength(0)
+    })
+  })
+
+  describe("deleteWorkflowNodes", () => {
+    it("removes multiple nodes and their connections in one update", async () => {
+      const existingRow = workflowRow({
+        nodes: [
+          { id: "n1", type: "agent", position: { x: 0, y: 0 }, data: { label: "A" } },
+          { id: "n2", type: "agent", position: { x: 100, y: 0 }, data: { label: "B" } },
+          { id: "n3", type: "end", position: { x: 200, y: 0 }, data: { label: "C" } },
+        ],
+        connections: [
+          { id: "c1", sourceId: "n1", targetId: "n2" },
+          { id: "c2", sourceId: "n2", targetId: "n3" },
+        ],
+      })
+      const updatedRow = workflowRow({
+        nodes: [{ id: "n3", type: "end", position: { x: 200, y: 0 }, data: { label: "C" } }],
+        connections: [],
+      })
+
+      mockFrom
+        .mockReturnValueOnce(createMockChain<WorkflowRow>({ data: existingRow, error: null }))
+        .mockReturnValueOnce(createMockChain<WorkflowRow>({ data: updatedRow, error: null }))
+
+      const result = await deleteWorkflowNodes(WORKFLOW_ID, ["n1", "n2"])
+
+      expect(result.nodes).toHaveLength(1)
+      expect(result.nodes[0].id).toBe("n3")
       expect(result.connections).toHaveLength(0)
     })
   })

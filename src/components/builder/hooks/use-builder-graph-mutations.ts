@@ -302,12 +302,15 @@ export function useBuilderGraphMutations(options: {
       const ids = Array.isArray(nodeIds) ? nodeIds : nodeIds ? [nodeIds] : []
       if (!ids.length || !workflowId || !workflow) return
       const previous = workflow
-      const results = await Promise.all(
-        ids.map((nodeId) =>
-          safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, { method: "DELETE" }),
-        ),
-      )
-      if (results.every((response) => response.ok)) {
+      const response =
+        ids.length === 1
+          ? await safeFetch(`/api/workflows/${workflowId}/nodes/${ids[0]}`, { method: "DELETE" })
+          : await safeFetch(`/api/workflows/${workflowId}/nodes`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ nodeIds: ids }),
+            })
+      if (response.ok) {
         saveToHistory(previous)
       }
       mutateWorkflow(workflowId)

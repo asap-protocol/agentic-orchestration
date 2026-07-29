@@ -123,17 +123,22 @@ export async function updateWorkflowNode(
   return await updateWorkflow(workflowId, { nodes: updatedNodes }, workspaceId)
 }
 
-export async function deleteWorkflowNode(
+export async function deleteWorkflowNodes(
   workflowId: string,
-  nodeId: string,
+  nodeIds: string[],
   workspaceId?: string,
 ): Promise<Workflow> {
+  if (nodeIds.length === 0) {
+    throw new Error("At least one node id is required")
+  }
+
   const workflow = await getWorkflow(workflowId, workspaceId)
   if (!workflow) throw new Error("Workflow not found")
 
-  const updatedNodes = workflow.nodes.filter((node) => node.id !== nodeId)
+  const nodeIdsSet = new Set(nodeIds)
+  const updatedNodes = workflow.nodes.filter((node) => !nodeIdsSet.has(node.id))
   const updatedConnections = workflow.connections.filter(
-    (conn) => conn.sourceId !== nodeId && conn.targetId !== nodeId,
+    (conn) => !nodeIdsSet.has(conn.sourceId) && !nodeIdsSet.has(conn.targetId),
   )
 
   return await updateWorkflow(
@@ -141,6 +146,14 @@ export async function deleteWorkflowNode(
     { nodes: updatedNodes, connections: updatedConnections },
     workspaceId,
   )
+}
+
+export async function deleteWorkflowNode(
+  workflowId: string,
+  nodeId: string,
+  workspaceId?: string,
+): Promise<Workflow> {
+  return deleteWorkflowNodes(workflowId, [nodeId], workspaceId)
 }
 
 export async function addWorkflowConnection(
