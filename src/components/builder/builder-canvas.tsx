@@ -719,7 +719,10 @@ function BuilderCanvasInner() {
         onToggle={() => setShowProperties(!showProperties)}
         node={selectedNode}
         workflowId={workflowId}
-        onUpdate={() => mutate(`/api/workflows/${workflowId}`)}
+        onBeforeSave={() => {
+          if (workflow) saveToHistory(workflow)
+        }}
+        onUpdate={() => mutateWorkflow(workflowId)}
       />
 
       <VersionHistoryPanel

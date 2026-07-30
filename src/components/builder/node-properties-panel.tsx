@@ -35,6 +35,8 @@ interface NodePropertiesPanelProps {
   onToggle: () => void
   node: WorkflowNode | undefined
   workflowId: string
+  /** Snapshot pre-edit workflow into undo history before persisting property changes. */
+  onBeforeSave?: () => void
   onUpdate: () => void
 }
 
@@ -68,6 +70,7 @@ export function NodePropertiesPanel({
   onToggle,
   node,
   workflowId,
+  onBeforeSave,
   onUpdate,
 }: NodePropertiesPanelProps) {
   const [formData, setFormData] = useState<WorkflowNode["data"]>(node?.data || { label: "" })
@@ -82,6 +85,8 @@ export function NodePropertiesPanel({
 
   const handleSave = async () => {
     if (!node) return
+
+    onBeforeSave?.()
 
     await fetch(`/api/workflows/${workflowId}/nodes/${node.id}`, {
       method: "PATCH",
