@@ -152,14 +152,27 @@ export function useBuilderHistory(options: {
   const handleUndo = useCallback(() => applyHistoryTransition("undo"), [applyHistoryTransition])
   const handleRedo = useCallback(() => applyHistoryTransition("redo"), [applyHistoryTransition])
 
+  const resolveLatestPersistedWorkflow = useCallback(async (): Promise<Workflow> => {
+    const fallback = (lastPersistedRef.current ?? workflow) as Workflow
+    try {
+      const response = await safeFetch(`/api/workflows/${workflowId}`)
+      if (!response.ok) return fallback
+      const fresh = (await response.json()) as Workflow
+      lastPersistedRef.current = fresh
+      return fresh
+    } catch {
+      return fallback
+    }
+  }, [workflowId, workflow, safeFetch])
+
   const handleRestoreVersion = useCallback(
     async (version: WorkflowVersion) => {
       if (!workflowId || !workflow) return
       if (transitionInFlightRef.current) return
       transitionInFlightRef.current = true
       setIsHistoryTransitioning(true)
-      const previous = workflow
       try {
+        const previous = await resolveLatestPersistedWorkflow()
         const response = await safeFetch(`/api/workflows/${workflowId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -187,7 +200,7 @@ export function useBuilderHistory(options: {
         setIsHistoryTransitioning(false)
       }
     },
-    [workflowId, workflow, mutateWorkflow, safeFetch, toast],
+    [workflowId, workflow, mutateWorkflow, safeFetch, toast, resolveLatestPersistedWorkflow],
   )
 
   return {
