@@ -293,6 +293,32 @@ describe("fetchRegistryAgents", () => {
     expect(result.error).toBe("Security restriction: Unable to verify revocation list.")
   })
 
+  it("returns empty agents with error when revoked list HTTP is non-OK (fail closed)", async () => {
+    let callCount = 0
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => {
+        callCount++
+        if (callCount === 1) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ agents: [mockAgent1] }),
+          })
+        }
+        return Promise.resolve({
+          ok: false,
+          status: 503,
+          statusText: "Service Unavailable",
+        })
+      }),
+    )
+
+    const result = await fetchRegistryAgents()
+
+    expect(result.agents).toEqual([])
+    expect(result.error).toBe("Security restriction: Unable to verify revocation list.")
+  })
+
   it("returns empty agents for empty registry", async () => {
     const mockFetch = createFetchMock({ agents: [] }, { revoked: [] })
     vi.stubGlobal("fetch", mockFetch)
