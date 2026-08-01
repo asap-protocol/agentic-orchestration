@@ -536,4 +536,121 @@ describe("BuilderCanvas", () => {
     expect(body.nodes).toEqual(versionNodes)
     expect(body.connections).toEqual([])
   })
+
+  it("restore uses fresh server graph for undo baseline when SWR is stale", async () => {
+    const user = userEvent.setup()
+    const staleWorkflow: Workflow = {
+      ...mockWorkflow,
+      nodes: [mockWorkflow.nodes[0]],
+      updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+    }
+    const freshNode: WorkflowNode = {
+      id: "n2",
+      type: "agent",
+      position: { x: 120, y: 40 },
+      data: { label: "Fresh" },
+    }
+    const freshWorkflow: Workflow = {
+      ...mockWorkflow,
+      nodes: [mockWorkflow.nodes[0], freshNode],
+      updatedAt: new Date("2026-01-02T00:00:00.000Z"),
+    }
+    const versionNodes: WorkflowNode[] = [
+      {
+        id: "saved-node",
+        type: "agent",
+        position: { x: 10, y: 20 },
+        data: { label: "Saved" },
+      },
+    ]
+    const versionPayload = {
+      id: "ver-1",
+      workflowId: "wf-1",
+      version: 1,
+      name: "v1",
+      description: "checkpoint",
+      nodes: versionNodes,
+      connections: [],
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+      tags: [],
+    }
+
+    vi.mocked(useSWR).mockImplementation((key) => {
+      if (key === "/api/workflows") {
+        return { ...baseSWR(), data: mockWorkflows }
+      }
+      if (key === "/api/workflows/wf-1/versions") {
+        return { ...baseSWR(), data: [versionPayload] }
+      }
+      if (typeof key === "string" && key.startsWith("/api/workflows/")) {
+        return { ...baseSWR(), data: staleWorkflow, isLoading: false }
+      }
+      return baseSWR()
+    })
+
+    global.fetch = vi.fn().mockImplementation((url, init) => {
+      const method = typeof init === "object" && init !== null && "method" in init ? init.method : "GET"
+      if (String(url) === "/api/workflows/wf-1" && method === "GET") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => freshWorkflow,
+          clone() {
+            return this
+          },
+          text: async () => "",
+        })
+      }
+      if (String(url) === "/api/workflows/wf-1" && method === "PATCH") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({}),
+          clone() {
+            return this
+          },
+          text: async () => "",
+        })
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+        clone() {
+          return this
+        },
+        text: async () => "",
+      })
+    }) as unknown as typeof fetch
+
+    render(<BuilderCanvas />)
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Version history" })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole("button", { name: "Version history" }))
+    await user.click(screen.getByRole("button", { name: "Restore version v1" }))
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled()
+    })
+
+    await user.click(screen.getByRole("button", { name: "Undo" }))
+
+    await waitFor(() => {
+      const patchCall = vi
+        .mocked(global.fetch)
+        .mock.calls.find(
+          ([fetchUrl, fetchInit]) =>
+            String(fetchUrl) === "/api/workflows/wf-1" &&
+            typeof fetchInit === "object" &&
+            fetchInit !== null &&
+            "method" in fetchInit &&
+            fetchInit.method === "PATCH" &&
+            String(fetchInit.body).includes("n2"),
+        )
+      expect(patchCall).toBeDefined()
+    })
+  })
 })
