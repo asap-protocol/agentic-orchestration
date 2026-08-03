@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 import {
   connectionIdsAlongNodePath,
   connectionIdsTouchingNode,
+  removeConnectionsById,
   workflowConnectionsToEdges,
 } from "@/lib/builder/workflow-to-reactflow"
 import type { Connection, WorkflowNode } from "@/lib/workflow-types"
@@ -17,6 +18,18 @@ const nodes: WorkflowNode[] = [
   { id: "n2", type: "agent", position: { x: 100, y: 0 }, data: { label: "Agent" } },
   { id: "n3", type: "end", position: { x: 200, y: 0 }, data: { label: "End" } },
 ]
+
+describe("removeConnectionsById", () => {
+  it("removes multiple connection ids in one pass", () => {
+    expect(removeConnectionsById(connections, ["e1", "e2"])).toEqual([connections[2]])
+  })
+
+  it("accumulates sequential deletes against the same baseline", () => {
+    const afterFirst = removeConnectionsById(connections, ["e1"])
+    const afterSecond = removeConnectionsById(afterFirst, ["e2"])
+    expect(afterSecond).toEqual([connections[2]])
+  })
+})
 
 describe("connectionIdsTouchingNode", () => {
   it("returns edge ids where the node is source or target", () => {

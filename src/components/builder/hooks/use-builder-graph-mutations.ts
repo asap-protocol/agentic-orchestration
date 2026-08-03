@@ -3,14 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type {
   Connection as ReactFlowConnection,
-  Edge,
   EdgeChange,
   Node,
   NodeChange,
   XYPosition,
 } from "@xyflow/react"
-import type { NodeType, Position, Workflow } from "@/lib/workflow-types"
-import { reactFlowEdgesToConnections } from "@/lib/builder/workflow-to-reactflow"
+import type { NodeType, Position, Workflow, Connection } from "@/lib/workflow-types"
+import { removeConnectionsById } from "@/lib/builder/workflow-to-reactflow"
 import type { WorkflowNodeData } from "../canvas-node"
 import { GRID_SIZE, type SafeFetch } from "../builder-constants"
 
@@ -25,7 +24,6 @@ type SaveToHistory = (snapshot?: Workflow) => void
 export function useBuilderGraphMutations(options: {
   workflowId: string | null
   workflow: Workflow | null | undefined
-  edges: Edge[]
   saveToHistory: SaveToHistory
   mutateWorkflow: (id: string) => void
   safeFetch: SafeFetch
@@ -37,7 +35,6 @@ export function useBuilderGraphMutations(options: {
   const {
     workflowId,
     workflow,
-    edges,
     saveToHistory,
     mutateWorkflow,
     safeFetch,
@@ -48,7 +45,14 @@ export function useBuilderGraphMutations(options: {
   } = options
 
   const layoutTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const optimisticConnectionsRef = useRef<Connection[] | null>(null)
   const [isLayoutTransitioning, setIsLayoutTransitioning] = useState(false)
+
+  useEffect(() => {
+    if (workflow?.connections) {
+      optimisticConnectionsRef.current = workflow.connections
+    }
+  }, [workflow?.connections])
 
   useEffect(() => {
     return () => {
@@ -146,20 +150,26 @@ export function useBuilderGraphMutations(options: {
       const removeChanges = changes.filter((c) => c.type === "remove") as { id: string }[]
       if (removeChanges.length > 0 && workflowId && workflow) {
         const previous = workflow
-        const updatedEdges = edges.filter((e) => !removeChanges.some((r) => r.id === e.id))
+        const removeIds = new Set(removeChanges.map((change) => change.id))
+        const baseConnections =
+          optimisticConnectionsRef.current ?? workflow.connections ?? []
+        const updatedConnections = removeConnectionsById(baseConnections, removeIds)
+        optimisticConnectionsRef.current = updatedConnections
         void safeFetch(`/api/workflows/${workflowId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ connections: reactFlowEdgesToConnections(updatedEdges) }),
+          body: JSON.stringify({ connections: updatedConnections }),
         }).then((response) => {
           if (response.ok) {
             saveToHistory(previous)
+          } else {
+            optimisticConnectionsRef.current = workflow.connections
           }
           mutateWorkflow(workflowId)
         })
       }
     },
-    [onEdgesChange, edges, workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [onEdgesChange, workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
   )
 
   const handleConnect = useCallback(
