@@ -196,7 +196,6 @@ function BuilderCanvasInner() {
   } = useBuilderGraphMutations({
     workflowId,
     workflow,
-    edges,
     saveToHistory,
     mutateWorkflow,
     safeFetch,

@@ -137,3 +137,11 @@ export function reactFlowEdgesToConnections(edges: Edge[]): Connection[] {
     targetHandle: e.targetHandle ?? undefined,
   }))
 }
+
+export function removeConnectionsById(
+  connections: Connection[],
+  removeIds: Iterable<string>,
+): Connection[] {
+  const ids = new Set(removeIds)
+  return connections.filter((connection) => !ids.has(connection.id))
+}
