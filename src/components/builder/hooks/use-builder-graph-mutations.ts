@@ -26,6 +26,7 @@ export function useBuilderGraphMutations(options: {
   workflowId: string | null
   workflow: Workflow | null | undefined
   edges: Edge[]
+  isHistoryTransitioning: boolean
   saveToHistory: SaveToHistory
   mutateWorkflow: (id: string) => void
   safeFetch: SafeFetch
@@ -38,6 +39,7 @@ export function useBuilderGraphMutations(options: {
     workflowId,
     workflow,
     edges,
+    isHistoryTransitioning,
     saveToHistory,
     mutateWorkflow,
     safeFetch,
@@ -61,7 +63,7 @@ export function useBuilderGraphMutations(options: {
 
   const handleNodeDeleteById = useCallback(
     async (nodeId: string) => {
-      if (!workflowId || !workflow) return
+      if (isHistoryTransitioning || !workflowId || !workflow) return
       const previous = workflow
       const response = await safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, {
         method: "DELETE",
@@ -71,12 +73,12 @@ export function useBuilderGraphMutations(options: {
       }
       mutateWorkflow(workflowId)
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [workflowId, workflow, isHistoryTransitioning, saveToHistory, mutateWorkflow, safeFetch],
   )
 
   const handleAssignToFrame = useCallback(
     async (nodeId: string, frameId: string) => {
-      if (!workflowId || !workflow) return
+      if (isHistoryTransitioning || !workflowId || !workflow) return
       const previous = workflow
       const response = await safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, {
         method: "PATCH",
@@ -91,12 +93,12 @@ export function useBuilderGraphMutations(options: {
       mutateWorkflow(workflowId)
       toast({ title: "Node added to frame" })
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, toast, safeFetch],
+    [workflowId, workflow, isHistoryTransitioning, saveToHistory, mutateWorkflow, toast, safeFetch],
   )
 
   const handleRemoveFromFrame = useCallback(
     async (nodeId: string) => {
-      if (!workflowId || !workflow) return
+      if (isHistoryTransitioning || !workflowId || !workflow) return
       const previous = workflow
       const response = await safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, {
         method: "PATCH",
@@ -111,12 +113,12 @@ export function useBuilderGraphMutations(options: {
       mutateWorkflow(workflowId)
       toast({ title: "Node removed from frame" })
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, toast, safeFetch],
+    [workflowId, workflow, isHistoryTransitioning, saveToHistory, mutateWorkflow, toast, safeFetch],
   )
 
   const handleFrameLabelChange = useCallback(
     async (nodeId: string, newLabel: string) => {
-      if (!workflowId || !workflow) return
+      if (isHistoryTransitioning || !workflowId || !workflow) return
       const node = workflow.nodes.find((n) => n.id === nodeId)
       if (!node) return
       const previous = workflow
@@ -130,7 +132,7 @@ export function useBuilderGraphMutations(options: {
       }
       mutateWorkflow(workflowId)
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [workflowId, workflow, isHistoryTransitioning, saveToHistory, mutateWorkflow, safeFetch],
   )
 
   const handleNodesChange = useCallback(
@@ -142,6 +144,7 @@ export function useBuilderGraphMutations(options: {
 
   const handleEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
+      if (isHistoryTransitioning) return
       onEdgesChange(changes)
       const removeChanges = changes.filter((c) => c.type === "remove") as { id: string }[]
       if (removeChanges.length > 0 && workflowId && workflow) {
@@ -159,12 +162,13 @@ export function useBuilderGraphMutations(options: {
         })
       }
     },
-    [onEdgesChange, edges, workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [isHistoryTransitioning, onEdgesChange, edges, workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
   )
 
   const handleConnect = useCallback(
     async (connection: ReactFlowConnection) => {
-      if (!workflowId || !workflow || !connection.source || !connection.target) return
+      if (isHistoryTransitioning || !workflowId || !workflow || !connection.source || !connection.target)
+        return
       const previous = workflow
       const response = await safeFetch(`/api/workflows/${workflowId}/connections`, {
         method: "POST",
@@ -181,12 +185,12 @@ export function useBuilderGraphMutations(options: {
       }
       mutateWorkflow(workflowId)
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [workflowId, workflow, isHistoryTransitioning, saveToHistory, mutateWorkflow, safeFetch],
   )
 
   const handleNodeDragStop = useCallback(
     async (_: React.MouseEvent, node: Node<WorkflowNodeData, NodeType>) => {
-      if (!workflowId || !workflow) return
+      if (isHistoryTransitioning || !workflowId || !workflow) return
       const previous = workflow
       const snappedPosition = {
         x: Math.round(node.position.x / GRID_SIZE) * GRID_SIZE,
@@ -202,12 +206,12 @@ export function useBuilderGraphMutations(options: {
       }
       mutateWorkflow(workflowId)
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [workflowId, workflow, isHistoryTransitioning, saveToHistory, mutateWorkflow, safeFetch],
   )
 
   const handleAddNode = useCallback(
     async (type: NodeType, position?: Position) => {
-      if (!workflowId || !workflow) return
+      if (isHistoryTransitioning || !workflowId || !workflow) return
       const previous = workflow
 
       let posX: number
@@ -267,7 +271,7 @@ export function useBuilderGraphMutations(options: {
       }
       mutateWorkflow(workflowId)
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, screenToFlowPosition, safeFetch],
+    [workflowId, workflow, isHistoryTransitioning, saveToHistory, mutateWorkflow, screenToFlowPosition, safeFetch],
   )
 
   const handleAddFrame = useCallback(() => {
@@ -275,7 +279,7 @@ export function useBuilderGraphMutations(options: {
   }, [handleAddNode])
 
   const handleAutoLayout = useCallback(async () => {
-    if (!workflowId || !workflow) return
+    if (isHistoryTransitioning || !workflowId || !workflow) return
     if (layoutTransitionTimeoutRef.current) {
       clearTimeout(layoutTransitionTimeoutRef.current)
       layoutTransitionTimeoutRef.current = null
@@ -295,12 +299,12 @@ export function useBuilderGraphMutations(options: {
       setIsLayoutTransitioning(false)
       toast({ title: "Failed to apply layout", variant: "destructive" })
     }
-  }, [workflowId, workflow, saveToHistory, mutateWorkflow, toast, safeFetch])
+  }, [workflowId, workflow, isHistoryTransitioning, saveToHistory, mutateWorkflow, toast, safeFetch])
 
   const handleNodeDelete = useCallback(
     async (nodeIds: string | string[] | null) => {
       const ids = Array.isArray(nodeIds) ? nodeIds : nodeIds ? [nodeIds] : []
-      if (!ids.length || !workflowId || !workflow) return
+      if (isHistoryTransitioning || !ids.length || !workflowId || !workflow) return
       const previous = workflow
       const results = await Promise.all(
         ids.map((nodeId) =>
@@ -312,7 +316,7 @@ export function useBuilderGraphMutations(options: {
       }
       mutateWorkflow(workflowId)
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [workflowId, workflow, isHistoryTransitioning, saveToHistory, mutateWorkflow, safeFetch],
   )
 
   const handleSaveVersion = useCallback(async () => {

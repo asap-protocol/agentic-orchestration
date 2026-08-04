@@ -21,12 +21,13 @@ export function useBuilderClipboard(options: {
   workflowId: string | null
   selectedNodeIds: string[]
   workflow: Workflow | null | undefined
+  isHistoryTransitioning: boolean
   saveToHistory: SaveToHistory
   mutateWorkflow: (id: string) => void
   safeFetch: SafeFetch
   toast: ToastFn
 }) {
-  const { workflowId, selectedNodeIds, workflow, saveToHistory, mutateWorkflow, safeFetch, toast } =
+  const { workflowId, selectedNodeIds, workflow, isHistoryTransitioning, saveToHistory, mutateWorkflow, safeFetch, toast } =
     options
   const clipboardRef = useRef<ClipboardPayload | null>(null)
 
@@ -60,7 +61,7 @@ export function useBuilderClipboard(options: {
   }, [selectedNodeIds, copyNodeIds, toast])
 
   const handlePaste = useCallback(async () => {
-    if (!workflowId || !workflow) return
+    if (isHistoryTransitioning || !workflowId || !workflow) return
     const clipboard = clipboardRef.current
     if (!clipboard?.nodes?.length) {
       toast({ title: "Nothing to paste", variant: "destructive" })
@@ -80,11 +81,11 @@ export function useBuilderClipboard(options: {
     } else {
       toast({ title: "Nothing to paste", variant: "destructive" })
     }
-  }, [workflowId, workflow, saveToHistory, mutateWorkflow, toast, safeFetch])
+  }, [isHistoryTransitioning, workflowId, workflow, saveToHistory, mutateWorkflow, toast, safeFetch])
 
   const duplicateNodeIds = useCallback(
     async (nodeIds: string[], successTitle: string) => {
-      if (!nodeIds.length || !workflowId || !workflow) return
+      if (isHistoryTransitioning || !nodeIds.length || !workflowId || !workflow) return
       const previous = workflow
       const copied = await copyNodeIds(nodeIds)
       if (!copied || !clipboardRef.current) return
@@ -102,7 +103,7 @@ export function useBuilderClipboard(options: {
         toast({ title: successTitle })
       }
     },
-    [workflowId, workflow, copyNodeIds, saveToHistory, mutateWorkflow, toast, safeFetch],
+    [workflowId, workflow, isHistoryTransitioning, copyNodeIds, saveToHistory, mutateWorkflow, toast, safeFetch],
   )
 
   const handleDuplicate = useCallback(async () => {
