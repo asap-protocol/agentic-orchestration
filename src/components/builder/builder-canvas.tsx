@@ -197,6 +197,7 @@ function BuilderCanvasInner() {
     workflowId,
     workflow,
     edges,
+    isHistoryTransitioning,
     saveToHistory,
     mutateWorkflow,
     safeFetch,
@@ -215,6 +216,7 @@ function BuilderCanvasInner() {
       workflowId,
       selectedNodeIds,
       workflow,
+      isHistoryTransitioning,
       saveToHistory,
       mutateWorkflow,
       safeFetch,
@@ -345,6 +347,11 @@ function BuilderCanvasInner() {
         (document.activeElement as HTMLElement)?.isContentEditable
       if (isInput) return
 
+      const isHistoryShortcut =
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === "z" || e.key === "y" || (e.key === "z" && e.shiftKey))
+      if (isHistoryTransitioning && !isHistoryShortcut) return
+
       if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
         e.preventDefault()
         handleUndo()
@@ -398,6 +405,7 @@ function BuilderCanvasInner() {
     handleZoomOut,
     handleResetView,
     handleAutoLayout,
+    isHistoryTransitioning,
     selectedNodeIds,
   ])
 
