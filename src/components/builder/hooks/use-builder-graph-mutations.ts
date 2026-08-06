@@ -48,6 +48,11 @@ export function useBuilderGraphMutations(options: {
   } = options
 
   const layoutTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingDragBatchRef = useRef<{
+    positions: Map<string, XYPosition>
+    previous: Workflow | null
+    flushScheduled: boolean
+  }>({ positions: new Map(), previous: null, flushScheduled: false })
   const [isLayoutTransitioning, setIsLayoutTransitioning] = useState(false)
 
   useEffect(() => {
@@ -184,25 +189,56 @@ export function useBuilderGraphMutations(options: {
     [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
   )
 
+  const flushPendingDragPositions = useCallback(async () => {
+    const batch = pendingDragBatchRef.current
+    batch.flushScheduled = false
+    if (!workflowId || !workflow || batch.positions.size === 0) {
+      batch.positions.clear()
+      batch.previous = null
+      return
+    }
+
+    const previous = batch.previous ?? workflow
+    const positionUpdates = new Map(batch.positions)
+    batch.positions.clear()
+    batch.previous = null
+
+    const updatedNodes = workflow.nodes.map((node) => {
+      const position = positionUpdates.get(node.id)
+      return position ? { ...node, position } : node
+    })
+
+    const response = await safeFetch(`/api/workflows/${workflowId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nodes: updatedNodes }),
+    })
+    if (response.ok) {
+      saveToHistory(previous)
+    }
+    mutateWorkflow(workflowId)
+  }, [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch])
+
   const handleNodeDragStop = useCallback(
-    async (_: React.MouseEvent, node: Node<WorkflowNodeData, NodeType>) => {
+    (_: React.MouseEvent, node: Node<WorkflowNodeData, NodeType>) => {
       if (!workflowId || !workflow) return
-      const previous = workflow
       const snappedPosition = {
         x: Math.round(node.position.x / GRID_SIZE) * GRID_SIZE,
         y: Math.round(node.position.y / GRID_SIZE) * GRID_SIZE,
       }
-      const response = await safeFetch(`/api/workflows/${workflowId}/nodes/${node.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ position: snappedPosition }),
-      })
-      if (response.ok) {
-        saveToHistory(previous)
+      const batch = pendingDragBatchRef.current
+      if (batch.previous === null) {
+        batch.previous = workflow
       }
-      mutateWorkflow(workflowId)
+      batch.positions.set(node.id, snappedPosition)
+      if (!batch.flushScheduled) {
+        batch.flushScheduled = true
+        queueMicrotask(() => {
+          void flushPendingDragPositions()
+        })
+      }
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [workflowId, workflow, flushPendingDragPositions],
   )
 
   const handleAddNode = useCallback(
