@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { createPendingWriteTracker } from "@/lib/builder/pending-writes"
 import type {
   Connection as ReactFlowConnection,
   Edge,
@@ -48,7 +49,16 @@ export function useBuilderGraphMutations(options: {
   } = options
 
   const layoutTransitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingWritesRef = useRef(createPendingWriteTracker())
   const [isLayoutTransitioning, setIsLayoutTransitioning] = useState(false)
+
+  const trackWrite = useCallback(<T,>(promise: Promise<T>): Promise<T> => {
+    return pendingWritesRef.current.track(promise)
+  }, [])
+
+  const awaitPendingWrites = useCallback(async () => {
+    await pendingWritesRef.current.awaitAll()
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -63,26 +73,30 @@ export function useBuilderGraphMutations(options: {
     async (nodeId: string) => {
       if (!workflowId || !workflow) return
       const previous = workflow
-      const response = await safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, {
-        method: "DELETE",
-      })
+      const response = await trackWrite(
+        safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, {
+          method: "DELETE",
+        }),
+      )
       if (response.ok) {
         saveToHistory(previous)
       }
       mutateWorkflow(workflowId)
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch, trackWrite],
   )
 
   const handleAssignToFrame = useCallback(
     async (nodeId: string, frameId: string) => {
       if (!workflowId || !workflow) return
       const previous = workflow
-      const response = await safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parentId: frameId }),
-      })
+      const response = await trackWrite(
+        safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ parentId: frameId }),
+        }),
+      )
       if (!response.ok) {
         mutateWorkflow(workflowId)
         return
@@ -91,18 +105,20 @@ export function useBuilderGraphMutations(options: {
       mutateWorkflow(workflowId)
       toast({ title: "Node added to frame" })
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, toast, safeFetch],
+    [workflowId, workflow, saveToHistory, mutateWorkflow, toast, safeFetch, trackWrite],
   )
 
   const handleRemoveFromFrame = useCallback(
     async (nodeId: string) => {
       if (!workflowId || !workflow) return
       const previous = workflow
-      const response = await safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ parentId: null }),
-      })
+      const response = await trackWrite(
+        safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ parentId: null }),
+        }),
+      )
       if (!response.ok) {
         mutateWorkflow(workflowId)
         return
@@ -111,7 +127,7 @@ export function useBuilderGraphMutations(options: {
       mutateWorkflow(workflowId)
       toast({ title: "Node removed from frame" })
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, toast, safeFetch],
+    [workflowId, workflow, saveToHistory, mutateWorkflow, toast, safeFetch, trackWrite],
   )
 
   const handleFrameLabelChange = useCallback(
@@ -120,17 +136,19 @@ export function useBuilderGraphMutations(options: {
       const node = workflow.nodes.find((n) => n.id === nodeId)
       if (!node) return
       const previous = workflow
-      const response = await safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: { ...node.data, label: newLabel } }),
-      })
+      const response = await trackWrite(
+        safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: { ...node.data, label: newLabel } }),
+        }),
+      )
       if (response.ok) {
         saveToHistory(previous)
       }
       mutateWorkflow(workflowId)
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch, trackWrite],
   )
 
   const handleNodesChange = useCallback(
@@ -147,41 +165,45 @@ export function useBuilderGraphMutations(options: {
       if (removeChanges.length > 0 && workflowId && workflow) {
         const previous = workflow
         const updatedEdges = edges.filter((e) => !removeChanges.some((r) => r.id === e.id))
-        void safeFetch(`/api/workflows/${workflowId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ connections: reactFlowEdgesToConnections(updatedEdges) }),
-        }).then((response) => {
-          if (response.ok) {
-            saveToHistory(previous)
-          }
-          mutateWorkflow(workflowId)
-        })
+        void trackWrite(
+          safeFetch(`/api/workflows/${workflowId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ connections: reactFlowEdgesToConnections(updatedEdges) }),
+          }).then((response) => {
+            if (response.ok) {
+              saveToHistory(previous)
+            }
+            mutateWorkflow(workflowId)
+          }),
+        )
       }
     },
-    [onEdgesChange, edges, workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [onEdgesChange, edges, workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch, trackWrite],
   )
 
   const handleConnect = useCallback(
     async (connection: ReactFlowConnection) => {
       if (!workflowId || !workflow || !connection.source || !connection.target) return
       const previous = workflow
-      const response = await safeFetch(`/api/workflows/${workflowId}/connections`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sourceId: connection.source,
-          targetId: connection.target,
-          sourceHandle: connection.sourceHandle ?? undefined,
-          targetHandle: connection.targetHandle ?? undefined,
+      const response = await trackWrite(
+        safeFetch(`/api/workflows/${workflowId}/connections`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sourceId: connection.source,
+            targetId: connection.target,
+            sourceHandle: connection.sourceHandle ?? undefined,
+            targetHandle: connection.targetHandle ?? undefined,
+          }),
         }),
-      })
+      )
       if (response.ok) {
         saveToHistory(previous)
       }
       mutateWorkflow(workflowId)
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch, trackWrite],
   )
 
   const handleNodeDragStop = useCallback(
@@ -192,17 +214,19 @@ export function useBuilderGraphMutations(options: {
         x: Math.round(node.position.x / GRID_SIZE) * GRID_SIZE,
         y: Math.round(node.position.y / GRID_SIZE) * GRID_SIZE,
       }
-      const response = await safeFetch(`/api/workflows/${workflowId}/nodes/${node.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ position: snappedPosition }),
-      })
+      const response = await trackWrite(
+        safeFetch(`/api/workflows/${workflowId}/nodes/${node.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ position: snappedPosition }),
+        }),
+      )
       if (response.ok) {
         saveToHistory(previous)
       }
       mutateWorkflow(workflowId)
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch, trackWrite],
   )
 
   const handleAddNode = useCallback(
@@ -257,17 +281,19 @@ export function useBuilderGraphMutations(options: {
         nodePayload.style = { width: 400, height: 300 }
       }
 
-      const response = await safeFetch(`/api/workflows/${workflowId}/nodes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nodePayload),
-      })
+      const response = await trackWrite(
+        safeFetch(`/api/workflows/${workflowId}/nodes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(nodePayload),
+        }),
+      )
       if (response.ok) {
         saveToHistory(previous)
       }
       mutateWorkflow(workflowId)
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, screenToFlowPosition, safeFetch],
+    [workflowId, workflow, saveToHistory, mutateWorkflow, screenToFlowPosition, safeFetch, trackWrite],
   )
 
   const handleAddFrame = useCallback(() => {
@@ -282,7 +308,9 @@ export function useBuilderGraphMutations(options: {
     }
     const previous = workflow
     setIsLayoutTransitioning(true)
-    const response = await safeFetch(`/api/workflows/${workflowId}/auto-layout`, { method: "POST" })
+    const response = await trackWrite(
+      safeFetch(`/api/workflows/${workflowId}/auto-layout`, { method: "POST" }),
+    )
     if (response.ok) {
       saveToHistory(previous)
       mutateWorkflow(workflowId)
@@ -295,7 +323,7 @@ export function useBuilderGraphMutations(options: {
       setIsLayoutTransitioning(false)
       toast({ title: "Failed to apply layout", variant: "destructive" })
     }
-  }, [workflowId, workflow, saveToHistory, mutateWorkflow, toast, safeFetch])
+  }, [workflowId, workflow, saveToHistory, mutateWorkflow, toast, safeFetch, trackWrite])
 
   const handleNodeDelete = useCallback(
     async (nodeIds: string | string[] | null) => {
@@ -304,7 +332,9 @@ export function useBuilderGraphMutations(options: {
       const previous = workflow
       const results = await Promise.all(
         ids.map((nodeId) =>
-          safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, { method: "DELETE" }),
+          trackWrite(
+            safeFetch(`/api/workflows/${workflowId}/nodes/${nodeId}`, { method: "DELETE" }),
+          ),
         ),
       )
       if (results.every((response) => response.ok)) {
@@ -312,11 +342,12 @@ export function useBuilderGraphMutations(options: {
       }
       mutateWorkflow(workflowId)
     },
-    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch],
+    [workflowId, workflow, saveToHistory, mutateWorkflow, safeFetch, trackWrite],
   )
 
   const handleSaveVersion = useCallback(async () => {
     if (!workflowId) return
+    await awaitPendingWrites()
     const response = await safeFetch(`/api/workflows/${workflowId}/versions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -325,7 +356,7 @@ export function useBuilderGraphMutations(options: {
     if (response.ok) {
       toast({ title: "Version saved" })
     }
-  }, [workflowId, safeFetch, toast])
+  }, [workflowId, safeFetch, toast, awaitPendingWrites])
 
   return {
     isLayoutTransitioning,

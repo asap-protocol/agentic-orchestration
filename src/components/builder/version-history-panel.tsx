@@ -17,6 +17,7 @@ interface VersionHistoryPanelProps {
   isOpen: boolean
   onToggle: () => void
   onRestoreVersion?: (version: WorkflowVersion) => void
+  onSave?: () => void | Promise<void>
 }
 
 export function VersionHistoryPanel({
@@ -24,6 +25,7 @@ export function VersionHistoryPanel({
   isOpen,
   onToggle,
   onRestoreVersion,
+  onSave,
 }: VersionHistoryPanelProps) {
   const { data: versions, mutate } = useSWR<WorkflowVersion[]>(
     `/api/workflows/${workflowId}/versions`,
@@ -53,11 +55,15 @@ export function VersionHistoryPanel({
   }
 
   const handleCreateVersion = async () => {
-    await fetch(`/api/workflows/${workflowId}/versions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ description: "Manual save point" }),
-    })
+    if (onSave) {
+      await onSave()
+    } else {
+      await fetch(`/api/workflows/${workflowId}/versions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: "Manual save point" }),
+      })
+    }
     mutate()
   }
 
