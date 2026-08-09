@@ -727,6 +727,7 @@ function BuilderCanvasInner() {
         isOpen={showVersionHistory}
         onToggle={() => setShowVersionHistory(!showVersionHistory)}
         onRestoreVersion={handleRestoreVersion}
+        onSave={handleSaveVersion}
       />
 
       <ExecutionMonitor
