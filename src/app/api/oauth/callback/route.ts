@@ -1,5 +1,7 @@
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
+import { auth } from "@/auth"
+import { requireSessionUserId } from "@/lib/api/require-session-user-id"
 import {
   OAUTH_PKCE_COOKIE_NAME,
   getOAuthPkceCookieClearOptions,
@@ -30,6 +32,15 @@ export async function GET(request: Request) {
     )
   }
 
+  const session = await auth()
+  const userIdOrError = requireSessionUserId(session)
+  if (userIdOrError instanceof NextResponse) {
+    return withClearedPkceCookie(
+      NextResponse.redirect(new URL("/connectors?error=unauthorized", request.url)),
+    )
+  }
+  const userId = userIdOrError
+
   const cookieStore = await cookies()
   const pkceCookie = cookieStore.get(OAUTH_PKCE_COOKIE_NAME)?.value
 
@@ -41,7 +52,8 @@ export async function GET(request: Request) {
 
     const tokens = await oauthManager.exchangeCodeForToken(code, oauthState)
 
-    const _connection = connectorStore.addConnection({
+    connectorStore.addConnection({
+      ownerUserId: userId,
       connectorId: oauthState.connectorId,
       name: `${oauthState.connectorId} Connection`,
       status: "connected",

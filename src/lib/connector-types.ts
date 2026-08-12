@@ -26,6 +26,8 @@ export interface Connector {
 
 export interface Connection {
   id: string
+  /** Authenticated user that owns this connection; required for tenant isolation. */
+  ownerUserId: string
   connectorId: string
   name: string
   status: ConnectionStatus

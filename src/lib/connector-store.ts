@@ -129,15 +129,25 @@ class ConnectorStore {
     return this.connectors.filter((c) => c.category === category)
   }
 
-  getConnections(): Connection[] {
-    return this.connections
+  getConnections(ownerUserId: string): Connection[] {
+    return this.connections.filter((c) => c.ownerUserId === ownerUserId)
   }
 
-  getConnectionsByConnector(connectorId: string): Connection[] {
-    return this.connections.filter((c) => c.connectorId === connectorId)
+  getConnectionsByConnector(connectorId: string, ownerUserId: string): Connection[] {
+    return this.connections.filter(
+      (c) => c.connectorId === connectorId && c.ownerUserId === ownerUserId,
+    )
+  }
+
+  getConnectionById(id: string, ownerUserId: string): Connection | undefined {
+    return this.connections.find((c) => c.id === id && c.ownerUserId === ownerUserId)
   }
 
   addConnection(connection: Omit<Connection, "id" | "createdAt">): Connection {
+    if (!connection.ownerUserId) {
+      throw new Error("ownerUserId is required when adding a connection")
+    }
+
     const newConnection: Connection = {
       ...connection,
       id: `conn-${Date.now()}-${Math.random().toString(36).substring(7)}`,
@@ -153,16 +163,20 @@ class ConnectorStore {
     return newConnection
   }
 
-  updateConnection(id: string, updates: Partial<Connection>): Connection | null {
-    const index = this.connections.findIndex((c) => c.id === id)
+  updateConnection(
+    id: string,
+    ownerUserId: string,
+    updates: Partial<Omit<Connection, "id" | "ownerUserId" | "createdAt">>,
+  ): Connection | null {
+    const index = this.connections.findIndex((c) => c.id === id && c.ownerUserId === ownerUserId)
     if (index === -1) return null
 
     this.connections[index] = { ...this.connections[index], ...updates }
     return this.connections[index]
   }
 
-  deleteConnection(id: string): boolean {
-    const connection = this.connections.find((c) => c.id === id)
+  deleteConnection(id: string, ownerUserId: string): boolean {
+    const connection = this.connections.find((c) => c.id === id && c.ownerUserId === ownerUserId)
     if (!connection) return false
 
     this.connections = this.connections.filter((c) => c.id !== id)
@@ -180,7 +194,12 @@ class ConnectorStore {
     return true
   }
 
-  testConnection(_id: string): Promise<{ success: boolean; message: string }> {
+  testConnection(id: string, ownerUserId: string): Promise<{ success: boolean; message: string }> {
+    const owned = this.getConnectionById(id, ownerUserId)
+    if (!owned) {
+      return Promise.resolve({ success: false, message: "Connection not found" })
+    }
+
     return new Promise((resolve) => {
       setTimeout(() => {
         resolve({
@@ -189,6 +208,11 @@ class ConnectorStore {
         })
       }, 1500)
     })
+  }
+
+  /** Test-only: drop all stored connections between cases. */
+  clearConnections(): void {
+    this.connections = []
   }
 }
 
