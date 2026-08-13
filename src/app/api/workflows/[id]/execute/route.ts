@@ -19,12 +19,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const executor = new WorkflowExecutor(workflow, input, (execution) => {
-      // Note: We don't await this fire-and-forget update to avoid blocking executor
+      // Live progress for realtime subscribers. Terminal-status writes are
+      // awaited below; in-flight running patches cannot clobber them.
       executionStore.updateExecution(execution.id, execution).catch(console.error)
     })
 
+    await executionStore.addExecution(result.workspace.id, executor.getExecution())
     const execution = await executor.execute()
-    await executionStore.addExecution(result.workspace.id, execution)
+    await executionStore.updateExecution(execution.id, execution)
 
     return NextResponse.json(execution)
   } catch (error) {
