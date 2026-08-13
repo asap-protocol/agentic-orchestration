@@ -1,16 +1,43 @@
 import { getSupabaseServerClient } from "@/lib/supabase/server"
 import type { WorkflowExecution } from "./workflow-types"
 
+type ExecutionClient = NonNullable<Awaited<ReturnType<typeof getSupabaseServerClient>>>
+
+const PROGRESS_DB_STATUSES = ["running", "pending"] as const
+
+function toDbExecutionStatus(
+  status: WorkflowExecution["status"],
+): "running" | "completed" | "failed" | "pending" {
+  switch (status) {
+    case "paused":
+      return "pending"
+    case "running":
+      return "running"
+    case "completed":
+      return "completed"
+    case "failed":
+      return "failed"
+    default: {
+      const _exhaustive: never = status
+      throw new Error(`Unexpected execution status: ${String(_exhaustive)}`)
+    }
+  }
+}
+
+function isProgressDbStatus(status: unknown): boolean {
+  return status === "running" || status === "pending"
+}
+
 class ExecutionStore {
   async addExecution(workspaceId: string, execution: WorkflowExecution) {
     const supabase = await getSupabaseServerClient()
     if (!supabase) throw new Error("Database connection required")
 
-    await supabase.from("workflow_executions").insert({
+    const { error } = await supabase.from("workflow_executions").insert({
       id: execution.id,
       workspace_id: workspaceId,
       workflow_id: execution.workflowId,
-      status: execution.status === "paused" ? "pending" : execution.status,
+      status: toDbExecutionStatus(execution.status),
       input:
         typeof execution.input === "string" ? execution.input : JSON.stringify(execution.input),
       result: execution.result,
@@ -23,6 +50,11 @@ class ExecutionStore {
       completed_at: execution.completedAt?.toISOString(),
       error: execution.error,
     })
+    if (error) {
+      throw new Error(
+        `Failed to insert workflow_executions id=${execution.id} workflowId=${execution.workflowId}: ${error.message}`,
+      )
+    }
   }
 
   async getExecution(id: string): Promise<WorkflowExecution | undefined> {
@@ -65,8 +97,37 @@ class ExecutionStore {
     const supabase = await getSupabaseServerClient()
     if (!supabase) throw new Error("Database connection required")
 
+    const payload = await this.buildUpdatePayload(supabase, id, updates)
+    if (Object.keys(payload).length === 0) return
+
+    // Progress snapshots are fire-and-forget from /execute. A late "running"
+    // PATCH must not match a row that already reached completed/failed.
+    let query = supabase.from("workflow_executions").update(payload).eq("id", id)
+    if (isProgressDbStatus(payload.status)) {
+      query = query.in("status", [...PROGRESS_DB_STATUSES])
+    }
+    const { error } = await query
+    if (error) {
+      throw new Error(
+        `Failed to update workflow_executions id=${id} keys=${Object.keys(payload).join(",")}: ${error.message}`,
+      )
+    }
+  }
+
+  async deleteExecution(id: string): Promise<boolean> {
+    const supabase = await getSupabaseServerClient()
+    if (!supabase) return false
+    const { error } = await supabase.from("workflow_executions").delete().eq("id", id)
+    return !error
+  }
+
+  private async buildUpdatePayload(
+    supabase: ExecutionClient,
+    id: string,
+    updates: Partial<WorkflowExecution>,
+  ): Promise<Record<string, unknown>> {
     const payload: Record<string, unknown> = {}
-    if (updates.status) payload.status = updates.status === "paused" ? "pending" : updates.status
+    if (updates.status) payload.status = toDbExecutionStatus(updates.status)
     if (updates.result) payload.result = updates.result
     if (updates.completedAt) payload.completed_at = updates.completedAt.toISOString()
     if (updates.error) payload.error = updates.error
@@ -84,15 +145,7 @@ class ExecutionStore {
         currentNodeId: updates.currentNodeId || steps.currentNodeId,
       }
     }
-
-    await supabase.from("workflow_executions").update(payload).eq("id", id)
-  }
-
-  async deleteExecution(id: string): Promise<boolean> {
-    const supabase = await getSupabaseServerClient()
-    if (!supabase) return false
-    const { error } = await supabase.from("workflow_executions").delete().eq("id", id)
-    return !error
+    return payload
   }
 
   private mapRow(row: {
