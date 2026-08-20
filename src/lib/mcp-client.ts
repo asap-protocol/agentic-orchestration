@@ -1,5 +1,7 @@
 export interface MCPServer {
   id: string
+  /** Authenticated user that owns this MCP registration; required for tenant isolation. */
+  ownerUserId: string
   name: string
   url: string
   protocol: "stdio" | "http"
@@ -46,11 +48,17 @@ class MCPClient {
     url: string
     protocol: "stdio" | "http"
     environment?: Record<string, string>
+    ownerUserId: string
   }): Promise<MCPServer> {
+    if (!config.ownerUserId) {
+      throw new Error("ownerUserId is required when connecting an MCP server")
+    }
+
     const serverId = `mcp-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
     const server: MCPServer = {
       id: serverId,
+      ownerUserId: config.ownerUserId,
       name: config.name,
       url: config.url,
       protocol: config.protocol,
@@ -160,9 +168,11 @@ class MCPClient {
     }
   }
 
-  async disconnectServer(serverId: string): Promise<void> {
-    const server = this.servers.get(serverId)
-    if (!server) throw new Error("Server not found")
+  async disconnectServer(serverId: string, ownerUserId: string): Promise<void> {
+    const server = this.getServer(serverId, ownerUserId)
+    if (!server) {
+      throw new Error(`Server not found: received ${serverId}, expected an id owned by the caller`)
+    }
 
     server.status = "disconnected"
 
@@ -185,11 +195,18 @@ class MCPClient {
     }
   }
 
-  async callTool(toolName: string, args: Record<string, unknown>): Promise<unknown> {
-    const tool = Array.from(this.tools.values()).find((t) => t.name === toolName)
+  async callTool(
+    toolName: string,
+    args: Record<string, unknown>,
+    ownerUserId: string,
+  ): Promise<unknown> {
+    const tool = Array.from(this.tools.values()).find((t) => {
+      if (t.name !== toolName) return false
+      return this.getServer(t.serverId, ownerUserId) !== undefined
+    })
     if (!tool) throw new Error(`Tool ${toolName} not found`)
 
-    const server = this.servers.get(tool.serverId)
+    const server = this.getServer(tool.serverId, ownerUserId)
     if (!server || server.status !== "connected") {
       throw new Error("MCP server not connected")
     }
@@ -216,28 +233,43 @@ class MCPClient {
     return { success: true }
   }
 
-  getServers(): MCPServer[] {
-    return Array.from(this.servers.values())
+  getServers(ownerUserId: string): MCPServer[] {
+    return Array.from(this.servers.values()).filter((s) => s.ownerUserId === ownerUserId)
   }
 
-  getServer(serverId: string): MCPServer | undefined {
-    return this.servers.get(serverId)
+  getServer(serverId: string, ownerUserId: string): MCPServer | undefined {
+    const server = this.servers.get(serverId)
+    if (!server || server.ownerUserId !== ownerUserId) return undefined
+    return server
   }
 
-  getToolsByServer(serverId: string): MCPTool[] {
+  getToolsByServer(serverId: string, ownerUserId: string): MCPTool[] {
+    if (!this.getServer(serverId, ownerUserId)) return []
     return Array.from(this.tools.values()).filter((t) => t.serverId === serverId)
   }
 
-  getAllTools(): MCPTool[] {
-    return Array.from(this.tools.values())
+  getAllTools(ownerUserId: string): MCPTool[] {
+    return Array.from(this.tools.values()).filter(
+      (t) => this.getServer(t.serverId, ownerUserId) !== undefined,
+    )
   }
 
-  getResourcesByServer(serverId: string): MCPResource[] {
+  getResourcesByServer(serverId: string, ownerUserId: string): MCPResource[] {
+    if (!this.getServer(serverId, ownerUserId)) return []
     return Array.from(this.resources.values()).filter((r) => r.serverId === serverId)
   }
 
-  getPromptsByServer(serverId: string): MCPPrompt[] {
+  getPromptsByServer(serverId: string, ownerUserId: string): MCPPrompt[] {
+    if (!this.getServer(serverId, ownerUserId)) return []
     return Array.from(this.prompts.values()).filter((p) => p.serverId === serverId)
+  }
+
+  /** Test-only: drop all stored MCP registrations between cases. */
+  clearServers(): void {
+    this.servers.clear()
+    this.tools.clear()
+    this.resources.clear()
+    this.prompts.clear()
   }
 }
 
