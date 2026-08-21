@@ -1,12 +1,34 @@
 import { auth } from "@/auth"
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@supabase/supabase-js"
+import { z } from "zod"
+import {
+  assertAllowedSupabaseConnectionUrl,
+  DisallowedSupabaseConnectionUrlError,
+} from "@/lib/supabase-connection-url"
+
+const TestConnectionBodySchema = z
+  .object({
+    url: z.string().optional(),
+    key: z.string().optional(),
+  })
+  .strict()
 
 export async function POST(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   try {
-    const { url, key } = await request.json()
+    const parsedBody = TestConnectionBodySchema.safeParse(await request.json())
+    if (!parsedBody.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid request body.",
+        },
+        { status: 400 },
+      )
+    }
+    const { url, key } = parsedBody.data
 
     const supabaseUrl = url || process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseKey = key || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -21,7 +43,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey, {
+    const allowedUrl = assertAllowedSupabaseConnectionUrl(supabaseUrl)
+
+    const supabase = createClient(allowedUrl, supabaseKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
@@ -83,15 +107,19 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
+    if (error instanceof DisallowedSupabaseConnectionUrlError) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Supabase URL is not allowed.",
+        },
+        { status: 400 },
+      )
+    }
     return NextResponse.json(
       {
         success: false,
-        message: "Connection failed: " + message,
-        details: {
-          error: message,
-          hint: "Check your Supabase URL and API key",
-        },
+        message: "Connection failed. Check the Supabase URL and API key.",
       },
       { status: 500 },
     )
