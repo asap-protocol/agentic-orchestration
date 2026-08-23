@@ -1,6 +1,8 @@
 import { streamText, tool, convertToModelMessages, type UIMessage } from "ai"
+import { NextResponse } from "next/server"
 import { z } from "zod"
 import { auth } from "@/auth"
+import { requireSessionUserId } from "@/lib/api/require-session-user-id"
 import { store } from "@/lib/store"
 
 export const maxDuration = 60
@@ -165,11 +167,12 @@ const availableTools = {
 
 export async function POST(req: Request) {
   const session = await auth()
-  if (!session) return new Response("Unauthorized", { status: 401 })
+  const userIdOrError = requireSessionUserId(session)
+  if (userIdOrError instanceof NextResponse) return userIdOrError
 
   const { messages, agentId }: { messages: UIMessage[]; agentId: string } = await req.json()
 
-  const agent = store.getAgent(agentId)
+  const agent = store.getAgent(agentId, userIdOrError)
   if (!agent) {
     return new Response("Agent not found", { status: 404 })
   }

@@ -1,5 +1,7 @@
 export interface Agent {
   id: string
+  /** Authenticated owner. Omitted on shared seed templates that every user can read. */
+  ownerUserId?: string
   name: string
   description: string
   model: string

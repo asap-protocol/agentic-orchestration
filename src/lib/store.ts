@@ -72,17 +72,27 @@ class AgentStore {
     defaultTools.forEach((tool) => this.tools.set(tool.id, tool))
   }
 
-  getAgents(): Agent[] {
-    return Array.from(this.agents.values())
+  getAgents(ownerUserId: string): Agent[] {
+    return Array.from(this.agents.values()).filter((agent) => this.canReadAgent(agent, ownerUserId))
   }
 
-  getAgent(id: string): Agent | undefined {
-    return this.agents.get(id)
+  getAgent(id: string, ownerUserId: string): Agent | undefined {
+    const agent = this.agents.get(id)
+    if (!agent || !this.canReadAgent(agent, ownerUserId)) return undefined
+    return agent
   }
 
-  createAgent(agent: Omit<Agent, "id" | "createdAt" | "updatedAt">): Agent {
+  createAgent(
+    agent: Omit<Agent, "id" | "createdAt" | "updatedAt"> & { ownerUserId: string },
+  ): Agent {
+    if (typeof agent.ownerUserId !== "string" || agent.ownerUserId.length === 0) {
+      throw new Error(
+        `ownerUserId is required when creating an agent: received ${JSON.stringify(agent.ownerUserId)}, expected non-empty string`,
+      )
+    }
     const newAgent: Agent = {
       ...agent,
+      ownerUserId: agent.ownerUserId,
       id: crypto.randomUUID(),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -91,16 +101,47 @@ class AgentStore {
     return newAgent
   }
 
-  updateAgent(id: string, updates: Partial<Agent>): Agent | undefined {
+  updateAgent(
+    id: string,
+    ownerUserId: string,
+    updates: Partial<Omit<Agent, "id" | "ownerUserId" | "createdAt">>,
+  ): Agent | undefined {
     const agent = this.agents.get(id)
-    if (!agent) return undefined
-    const updated = { ...agent, ...updates, updatedAt: new Date() }
+    if (!agent || !this.canMutateAgent(agent, ownerUserId)) return undefined
+    const updated: Agent = {
+      ...agent,
+      ...updates,
+      id: agent.id,
+      ownerUserId: agent.ownerUserId,
+      createdAt: agent.createdAt,
+      updatedAt: new Date(),
+    }
     this.agents.set(id, updated)
     return updated
   }
 
-  deleteAgent(id: string): boolean {
+  deleteAgent(id: string, ownerUserId: string): boolean {
+    const agent = this.agents.get(id)
+    if (!agent || !this.canMutateAgent(agent, ownerUserId)) return false
     return this.agents.delete(id)
+  }
+
+  /**
+   * Test-only: drop user-created agents between cases. Seed templates stay.
+   */
+  resetUserCreatedAgents(): void {
+    const userAgentIds = [...this.agents.entries()]
+      .filter(([, agent]) => agent.ownerUserId !== undefined)
+      .map(([id]) => id)
+    for (const id of userAgentIds) this.agents.delete(id)
+  }
+
+  private canReadAgent(agent: Agent, ownerUserId: string): boolean {
+    return agent.ownerUserId === undefined || agent.ownerUserId === ownerUserId
+  }
+
+  private canMutateAgent(agent: Agent, ownerUserId: string): boolean {
+    return agent.ownerUserId === ownerUserId
   }
 
   getTools(): Tool[] {
