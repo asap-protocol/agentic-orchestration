@@ -10,9 +10,12 @@ function readEnv(name: string): string | undefined {
  * Important: read `PLAYWRIGHT_E2E` via bracket/index access so Turbopack/Next build does **not**
  * replace it when the variable was unset at compile time (`next build`).
  *
- * Never set `PLAYWRIGHT_E2E` on real deployments.
+ * Double guard: never activate in `NODE_ENV=production`, even if `PLAYWRIGHT_E2E=1` is
+ * accidentally set on a real deployment (restores the PR #15 production guard lost in
+ * the Turbopack stub-extraction refactor). Playwright sets `NODE_ENV=test` + `PLAYWRIGHT_E2E=1`.
  */
 export function shouldUseStubAuthSession(): boolean {
+  if (process.env.NODE_ENV === "production") return false
   return readEnv("PLAYWRIGHT_E2E") === "1" || process.env.NODE_ENV === "development"
 }
 

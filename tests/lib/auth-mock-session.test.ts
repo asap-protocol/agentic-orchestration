@@ -6,10 +6,10 @@ describe("shouldUseStubAuthSession", () => {
     vi.unstubAllEnvs()
   })
 
-  it("is true when PLAYWRIGHT_E2E is set, even under NODE_ENV=production", () => {
+  it("is false in production even when PLAYWRIGHT_E2E=1", () => {
     vi.stubEnv("PLAYWRIGHT_E2E", "1")
     vi.stubEnv("NODE_ENV", "production")
-    expect(shouldUseStubAuthSession()).toBe(true)
+    expect(shouldUseStubAuthSession()).toBe(false)
   })
 
   it("is true in development", () => {
@@ -28,6 +28,12 @@ describe("shouldUseStubAuthSession", () => {
     vi.stubEnv("PLAYWRIGHT_E2E", "")
     vi.stubEnv("NODE_ENV", "test")
     expect(shouldUseStubAuthSession()).toBe(false)
+  })
+
+  it("is true under NODE_ENV=test with PLAYWRIGHT_E2E=1 (Playwright webServer)", () => {
+    vi.stubEnv("PLAYWRIGHT_E2E", "1")
+    vi.stubEnv("NODE_ENV", "test")
+    expect(shouldUseStubAuthSession()).toBe(true)
   })
 })
 
